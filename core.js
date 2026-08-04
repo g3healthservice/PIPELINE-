@@ -13,3 +13,15 @@ export function canCreateImplementation(opportunity, implementations) {
     (item) => item.sourceOpportunityId === opportunity.id,
   );
 }
+
+export function formatCurrencyInput(value) {
+  const cents = Number(String(value).replace(/\D/g, '') || 0);
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency', currency: 'BRL', minimumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+export function parseCurrencyInput(value) {
+  const digits = String(value).replace(/\D/g, '');
+  return Number(digits || 0) / 100;
+}

@@ -45,6 +45,7 @@ main { max-width: 1500px; margin: auto; padding: 38px 28px; }
 .hero p { max-width: 700px; color: #536065; font-size: 1.05rem; }
 .primary { border: 0; border-radius: 9px; background: #00a88e; color: #fff; font: inherit; font-weight: 750; padding: 12px 16px; cursor: pointer; white-space: nowrap; }
 .compact { padding: 8px 10px; font-size: .8rem; }
+.danger { border: 1px solid #d9a3a3; border-radius: 8px; background: #fff7f7; color: #a42d2d; padding: 10px 13px; cursor: pointer; font: inherit; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .stats > div, .split > div { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #e2e7e7; }
 .stats span { display: block; color: #657176; font-size: .85rem; }
@@ -68,6 +69,8 @@ main { max-width: 1500px; margin: auto; padding: 38px 28px; }
 .muted, .empty { color: #718084; }
 .empty { text-align: center; font-size: .85rem; margin-top: 30px; }
 .card-actions { margin-top: 13px; display: flex; gap: 7px; flex-wrap: wrap; }
+.attachments { display: grid; gap: 4px; margin-top: 9px; }
+.attachments a { color: #087b6a; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card select { border: 1px solid #d6dfdf; border-radius: 6px; padding: 6px; background: #fff; font-size: .8rem; }
 dialog { border: 0; border-radius: 14px; padding: 0; width: min(700px, calc(100vw - 32px)); box-shadow: 0 18px 60px #0005; }
 dialog::backdrop { background: #061d2088; }
@@ -78,6 +81,8 @@ form { padding: 22px; }
 label { display: grid; gap: 5px; font-size: .82rem; font-weight: 700; color: #405055; }
 input, select, textarea { border: 1px solid #ced8d8; border-radius: 7px; padding: 9px; font: inherit; width: 100%; }
 textarea { min-height: 75px; }
+.attachment-field { grid-column: 1 / -1; }
+.attachment-field small { color: #718084; font-weight: 500; }
 .modal-footer { justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 760px) {
