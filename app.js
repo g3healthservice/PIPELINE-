@@ -13,16 +13,20 @@ const initial = {
 };
 
 function load() {
-  const data = JSON.parse(localStorage.getItem(key) || JSON.stringify(initial));
+  let data;
+  try { data = JSON.parse(localStorage.getItem(key) || JSON.stringify(initial)); }
+  catch { data = structuredClone(initial); }
   data.opportunities = data.opportunities.map((item) => ({
     ...item,
     solution: item.solution === 'Brain27' ? 'Unidades móveis' : item.solution,
-    attachments: item.attachments || [],
+    attachments: Array.isArray(item.attachments) ? item.attachments : [],
   }));
-  save(data);
   return data;
 }
-function save(data) { localStorage.setItem(key, JSON.stringify(data)); }
+function save(data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); return true; }
+  catch { alert('Não foi possível salvar: limpe anexos antigos ou use arquivos menores.'); return false; }
+}
 function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(Number(value || 0)); }
 function uid(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
 function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
@@ -82,7 +86,10 @@ function render() {
   app.innerHTML = nav() + (page === 'overview' ? overview(data) : page === 'commercial' ? commercial(data) : implementation(data));
   app.querySelectorAll('[data-move]').forEach((el) => el.addEventListener('change', () => { const list = el.dataset.move === 'commercial' ? data.opportunities : data.implementations; list.find((item) => item.id === el.dataset.id).stage = el.value; save(data); render(); }));
 }
-function openOpportunityModal(data, item) { app.insertAdjacentHTML('beforeend', modal(item)); bindForm(data, item?.id); }
+function openOpportunityModal(data, item) {
+  try { app.insertAdjacentHTML('beforeend', modal(item)); bindForm(data, item?.id); }
+  catch (error) { console.error(error); alert('Não foi possível abrir a edição. Atualize a página e tente novamente.'); }
+}
 function removeOpportunity(data, id) {
   if (!window.confirm('Remover esta oportunidade? Esta ação não pode ser desfeita.')) return;
   data.opportunities = data.opportunities.filter((item) => item.id !== id);

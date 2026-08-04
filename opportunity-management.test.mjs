@@ -9,6 +9,8 @@ test('oferece edição, remoção, cancelamento e anexo na oportunidade', async 
   assert.match(app, /data-edit=/);
   assert.match(app, /data-delete=/);
   assert.match(app, /app\.addEventListener\('click'/);
+  assert.doesNotMatch(app, /save\(data\);\n  return data;/);
+  assert.match(app, /Não foi possível abrir a edição/);
   assert.match(app, /data-close-form/);
   assert.match(app, /type="file" name="attachment"/);
   assert.match(app, /formatCurrencyInput/);
