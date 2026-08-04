@@ -1,0 +1,10 @@
+{
+  "name": "g3-projetos-piloto",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test core.test.mjs",
+    "check": "node --check app.js && node --check core.js"
+  }
+}
