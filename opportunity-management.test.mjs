@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 test('oferece edição, remoção, cancelamento e anexo na oportunidade', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const index = await readFile(new URL('./index.html', import.meta.url), 'utf8');
 
   assert.match(app, /Unidades móveis/);
   assert.match(app, /data-edit=/);
@@ -11,6 +12,7 @@ test('oferece edição, remoção, cancelamento e anexo na oportunidade', async 
   assert.match(app, /app\.addEventListener\('click'/);
   assert.doesNotMatch(app, /save\(data\);\n  return data;/);
   assert.match(app, /Não foi possível abrir a edição/);
+  assert.match(index, /app\.js\?v=/);
   assert.match(app, /data-close-form/);
   assert.match(app, /type="file" name="attachment"/);
   assert.match(app, /formatCurrencyInput/);
