@@ -80,19 +80,34 @@ async function saveOpportunity(event, data, editingId) {
 function render() {
   const data = load();
   app.innerHTML = nav() + (page === 'overview' ? overview(data) : page === 'commercial' ? commercial(data) : implementation(data));
-  app.querySelectorAll('[data-page]').forEach((el) => el.addEventListener('click', () => { page = el.dataset.page; render(); }));
   app.querySelectorAll('[data-move]').forEach((el) => el.addEventListener('change', () => { const list = el.dataset.move === 'commercial' ? data.opportunities : data.implementations; list.find((item) => item.id === el.dataset.id).stage = el.value; save(data); render(); }));
-  app.querySelectorAll('[data-open-form]').forEach((el) => el.addEventListener('click', () => { app.insertAdjacentHTML('beforeend', modal()); bindForm(data); }));
-  app.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => { app.insertAdjacentHTML('beforeend', modal(data.opportunities.find((item) => item.id === el.dataset.edit))); bindForm(data, el.dataset.edit); }));
-  app.querySelectorAll('[data-delete]').forEach((el) => el.addEventListener('click', () => { if (window.confirm('Remover esta oportunidade? Esta ação não pode ser desfeita.')) { data.opportunities = data.opportunities.filter((item) => item.id !== el.dataset.delete); save(data); closeForm(); render(); } }));
-  app.querySelectorAll('[data-convert]').forEach((el) => el.addEventListener('click', () => { const source = data.opportunities.find((item) => item.id === el.dataset.convert); if (!canCreateImplementation(source, data.implementations)) return; data.implementations.push({ id: uid('impl'), sourceOpportunityId: source.id, municipality: source.municipality, state: source.state, solution: source.solution, owner: source.owner, stage: 'kickoff', nextMilestone: 'Realizar reunião de kick-off', risks: '', dependencies: '' }); save(data); page = 'implementation'; render(); }));
 }
+function openOpportunityModal(data, item) { app.insertAdjacentHTML('beforeend', modal(item)); bindForm(data, item?.id); }
+function removeOpportunity(data, id) {
+  if (!window.confirm('Remover esta oportunidade? Esta ação não pode ser desfeita.')) return;
+  data.opportunities = data.opportunities.filter((item) => item.id !== id);
+  save(data); closeForm(); render();
+}
+app.addEventListener('click', (event) => {
+  const target = event.target.closest('[data-page], [data-open-form], [data-edit], [data-delete], [data-convert]');
+  if (!target) return;
+  const data = load();
+  if (target.dataset.page) { page = target.dataset.page; render(); return; }
+  if (target.hasAttribute('data-open-form')) { openOpportunityModal(data); return; }
+  if (target.dataset.edit) { openOpportunityModal(data, data.opportunities.find((item) => item.id === target.dataset.edit)); return; }
+  if (target.dataset.delete) { removeOpportunity(data, target.dataset.delete); return; }
+  if (target.dataset.convert) {
+    const source = data.opportunities.find((item) => item.id === target.dataset.convert);
+    if (!canCreateImplementation(source, data.implementations)) return;
+    data.implementations.push({ id: uid('impl'), sourceOpportunityId: source.id, municipality: source.municipality, state: source.state, solution: source.solution, owner: source.owner, stage: 'kickoff', nextMilestone: 'Realizar reunião de kick-off', risks: '', dependencies: '' });
+    save(data); page = 'implementation'; render();
+  }
+});
 function bindForm(data, editingId) {
   const form = app.querySelector('#opportunity-form');
   form.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
   const value = form.elements.value;
   value.addEventListener('input', () => { value.value = formatCurrencyInput(value.value); });
   form.addEventListener('submit', (event) => saveOpportunity(event, data, editingId));
-  form.querySelector('[data-delete]')?.addEventListener('click', () => { if (window.confirm('Remover esta oportunidade? Esta ação não pode ser desfeita.')) { data.opportunities = data.opportunities.filter((item) => item.id !== editingId); save(data); closeForm(); render(); } });
 }
 render();
