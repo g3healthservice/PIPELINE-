@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test": "node --test core.test.mjs",
+    "test": "node --test *.test.mjs",
     "check": "node --check app.js && node --check core.js"
   }
 }
