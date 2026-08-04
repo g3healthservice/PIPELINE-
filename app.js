@@ -1,4 +1,5 @@
 import { commercialStages, implementationStages, canCreateImplementation, formatCurrencyInput, parseCurrencyInput } from './core.js';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
 
 const solutions = ['Raio-X Captação SUS', 'Monitor de Judicialização', 'PWG — Esteira do Medicamento', 'RosalindTest', 'Linda LifeTech', 'PinkPapa', 'Radar de Editais', 'Unidades móveis'];
 const key = 'g3-projetos-piloto-v1';
@@ -12,20 +13,33 @@ const initial = {
   implementations: [],
 };
 
-function load() {
-  let data;
-  try { data = JSON.parse(localStorage.getItem(key) || JSON.stringify(initial)); }
-  catch { data = structuredClone(initial); }
-  data.opportunities = data.opportunities.map((item) => ({
-    ...item,
-    solution: item.solution === 'Brain27' ? 'Unidades móveis' : item.solution,
-    attachments: Array.isArray(item.attachments) ? item.attachments : [],
-  }));
-  return data;
+let dataCache = { opportunities: [], implementations: [] };
+const api = (path, options = {}) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  ...options,
+  headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
+});
+const opportunityRecord = (item) => ({ id: item.id, municipality: item.municipality, state: item.state, solution: item.solution, owner: item.owner, stage: item.stage, value: item.value, next_action: item.nextAction, due: item.due || null, notes: item.notes, attachments: item.attachments || [] });
+const implementationRecord = (item) => ({ id: item.id, source_opportunity_id: item.sourceOpportunityId, municipality: item.municipality, state: item.state, solution: item.solution, owner: item.owner, stage: item.stage, next_milestone: item.nextMilestone || '', risks: item.risks || '', dependencies: item.dependencies || '' });
+async function hydrate() {
+  try {
+    const [opportunities, implementations] = await Promise.all([api('opportunities?select=*'), api('implementations?select=*')]);
+    if (!opportunities.ok || !implementations.ok) throw new Error('Falha ao conectar a base compartilhada.');
+    const [rawOpportunities, rawImplementations] = await Promise.all([opportunities.json(), implementations.json()]);
+    dataCache = { opportunities: rawOpportunities.map((x) => ({ ...x, nextAction: x.next_action, attachments: x.attachments || [] })), implementations: rawImplementations.map((x) => ({ ...x, sourceOpportunityId: x.source_opportunity_id, nextMilestone: x.next_milestone })) };
+  } catch (error) { console.error(error); alert('Não foi possível conectar à base compartilhada. Verifique sua internet e atualize a página.'); }
 }
-function save(data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); return true; }
-  catch { alert('Não foi possível salvar: limpe anexos antigos ou use arquivos menores.'); return false; }
+function load() { return dataCache; }
+async function save(data) {
+  try {
+    const deletedImplementations = await api('implementations?id=not.is.null', { method: 'DELETE' });
+    const deletedOpportunities = await api('opportunities?id=not.is.null', { method: 'DELETE' });
+    if (!deletedImplementations.ok || !deletedOpportunities.ok) throw new Error('Falha ao preparar o salvamento.');
+    const writes = [];
+    if (data.opportunities.length) writes.push(api('opportunities', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.opportunities.map(opportunityRecord)) }));
+    if (data.implementations.length) writes.push(api('implementations', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.implementations.map(implementationRecord)) }));
+    const results = await Promise.all(writes);
+    if (results.some((result) => !result.ok)) throw new Error('Falha ao salvar.');
+  } catch (error) { console.error(error); alert('Não foi possível salvar na base compartilhada. Tente novamente.'); }
 }
 function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(Number(value || 0)); }
 function uid(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
@@ -118,3 +132,4 @@ function bindForm(data, editingId) {
   form.addEventListener('submit', (event) => saveOpportunity(event, data, editingId));
 }
 render();
+hydrate().then(render);
