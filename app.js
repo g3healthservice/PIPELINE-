@@ -34,11 +34,14 @@ async function save(data) {
     const deletedImplementations = await api('implementations?id=not.is.null', { method: 'DELETE' });
     const deletedOpportunities = await api('opportunities?id=not.is.null', { method: 'DELETE' });
     if (!deletedImplementations.ok || !deletedOpportunities.ok) throw new Error('Falha ao preparar o salvamento.');
-    const writes = [];
-    if (data.opportunities.length) writes.push(api('opportunities', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.opportunities.map(opportunityRecord)) }));
-    if (data.implementations.length) writes.push(api('implementations', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.implementations.map(implementationRecord)) }));
-    const results = await Promise.all(writes);
-    if (results.some((result) => !result.ok)) throw new Error('Falha ao salvar.');
+    if (data.opportunities.length) {
+      const opportunities = await api('opportunities', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.opportunities.map(opportunityRecord)) });
+      if (!opportunities.ok) throw new Error('Falha ao salvar oportunidades.');
+    }
+    if (data.implementations.length) {
+      const implementations = await api('implementations', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.implementations.map(implementationRecord)) });
+      if (!implementations.ok) throw new Error('Falha ao salvar implantações.');
+    }
   } catch (error) { console.error(error); alert('Não foi possível salvar na base compartilhada. Tente novamente.'); }
 }
 function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(Number(value || 0)); }
