@@ -14,7 +14,7 @@ test('oferece edição, remoção, cancelamento e anexo na oportunidade', async 
   assert.match(app, /app\.addEventListener\('click'/);
   assert.doesNotMatch(app, /save\(data\);\n  return data;/);
   assert.match(app, /Não foi possível abrir a edição/);
-  assert.match(index, /app\.js\?v=/);
+  assert.match(index, /app\.js\?v=20260805-1/);
   assert.match(index, /supabase-config\.js/);
   assert.match(app, /from '\.\/supabase-config\.js'/);
   assert.match(app, /\/rest\/v1/);
