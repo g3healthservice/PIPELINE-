@@ -24,9 +24,27 @@ test('cria um projeto manual de implantação em kick-off sem oportunidade de or
   }, 'impl-1');
 
   assert.deepEqual(project, {
-    id: 'impl-1', municipality: 'BSB', state: 'DF', solution: 'Dr ao vivo', owner: 'Comercial',
+    id: 'impl-1', sourceOpportunityId: null,
+    municipality: 'BSB', state: 'DF', solution: 'Dr ao vivo', owner: 'Comercial',
     stage: 'kickoff', nextMilestone: 'Realizar kick-off', risks: 'Agenda', dependencies: 'Contrato',
   });
-  assert.equal('sourceOpportunityId' in project, false);
+  // A chave PRECISA existir valendo null. Omiti-la fazia JSON.stringify nao
+  // enviar a coluna, e o insert no Supabase era recusado -- o projeto aparecia
+  // na tela e sumia no primeiro salvamento.
+  assert.equal('sourceOpportunityId' in project, true);
+  assert.equal(project.sourceOpportunityId, null);
   assert.ok(solutions.includes('Dr ao vivo'));
+});
+
+test('projeto manual não impede uma oportunidade contratada de virar projeto', () => {
+  const manual = createManualImplementation({
+    municipality: 'BSB', state: 'DF', solution: 'Dr ao vivo', owner: 'Comercial',
+    nextMilestone: 'Realizar kick-off',
+  }, 'impl-manual');
+  const opportunity = { id: 'opp-1', stage: 'contracted' };
+
+  // Esta e a regra central do piloto vista pelo outro lado: um projeto sem
+  // origem nao pode "consumir" a oportunidade de ninguem.
+  assert.equal(canCreateImplementation(opportunity, [manual]), true);
+  assert.equal(canCreateImplementation(opportunity, [manual, { sourceOpportunityId: 'opp-1' }]), false);
 });

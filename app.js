@@ -18,7 +18,7 @@ const api = (path, options = {}) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
   headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
 });
 const opportunityRecord = (item) => ({ id: item.id, municipality: item.municipality, state: item.state, solution: item.solution, owner: item.owner, stage: item.stage, value: item.value, next_action: item.nextAction, due: item.due || null, notes: item.notes, attachments: item.attachments || [] });
-const implementationRecord = (item) => ({ id: item.id, source_opportunity_id: item.sourceOpportunityId, municipality: item.municipality, state: item.state, solution: item.solution, owner: item.owner, stage: item.stage, next_milestone: item.nextMilestone || '', risks: item.risks || '', dependencies: item.dependencies || '' });
+const implementationRecord = (item) => ({ id: item.id, source_opportunity_id: item.sourceOpportunityId ?? null, municipality: item.municipality, state: item.state, solution: item.solution, owner: item.owner, stage: item.stage, next_milestone: item.nextMilestone || '', risks: item.risks || '', dependencies: item.dependencies || '' });
 async function hydrate() {
   try {
     const [opportunities, implementations] = await Promise.all([api('opportunities?select=*'), api('implementations?select=*')]);
@@ -28,20 +28,42 @@ async function hydrate() {
   } catch (error) { console.error(error); alert('Não foi possível conectar à base compartilhada. Verifique sua internet e atualize a página.'); }
 }
 function load() { return dataCache; }
+// Grava primeiro, apaga depois -- e apaga so o que sumiu da tela.
+//
+// A versao anterior fazia o contrario: DELETE em tudo, depois INSERT em tudo.
+// Isso significa que qualquer falha DEPOIS do delete (queda de rede, aba
+// fechada, insert recusado pelo banco) deixava a base vazia, com o unico
+// exemplar dos dados vivo na memoria daquela aba. E a mensagem "tente
+// novamente" era enganosa: nao havia mais o que tentar.
+//
+// Nao resolve edicao simultanea -- duas pessoas mexendo ao mesmo tempo ainda
+// se sobrescrevem linha a linha. Resolve a destruicao.
+async function upsert(tabela, registros) {
+  if (!registros.length) return;
+  const resposta = await api(tabela, {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal,resolution=merge-duplicates' },
+    body: JSON.stringify(registros),
+  });
+  if (!resposta.ok) throw new Error(`Falha ao salvar ${tabela}: ${resposta.status}`);
+}
+async function removerAusentes(tabela, itens) {
+  const filtro = itens.length
+    ? `id=not.in.(${itens.map((item) => `"${item.id}"`).join(',')})`
+    : 'id=not.is.null';
+  const resposta = await api(`${tabela}?${filtro}`, { method: 'DELETE' });
+  if (!resposta.ok) throw new Error(`Falha ao remover de ${tabela}: ${resposta.status}`);
+}
 async function save(data) {
   try {
-    const deletedImplementations = await api('implementations?id=not.is.null', { method: 'DELETE' });
-    const deletedOpportunities = await api('opportunities?id=not.is.null', { method: 'DELETE' });
-    if (!deletedImplementations.ok || !deletedOpportunities.ok) throw new Error('Falha ao preparar o salvamento.');
-    if (data.opportunities.length) {
-      const opportunities = await api('opportunities', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.opportunities.map(opportunityRecord)) });
-      if (!opportunities.ok) throw new Error('Falha ao salvar oportunidades.');
-    }
-    if (data.implementations.length) {
-      const implementations = await api('implementations', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.implementations.map(implementationRecord)) });
-      if (!implementations.ok) throw new Error('Falha ao salvar implantações.');
-    }
-  } catch (error) { console.error(error); alert('Não foi possível salvar na base compartilhada. Tente novamente.'); }
+    // Oportunidade antes de implantacao: a implantacao derivada tem chave
+    // estrangeira para a oportunidade e o insert falha se ela ainda nao existe.
+    await upsert('opportunities', data.opportunities.map(opportunityRecord));
+    await upsert('implementations', data.implementations.map(implementationRecord));
+    // Na remocao, a ordem se inverte pelo mesmo motivo.
+    await removerAusentes('implementations', data.implementations);
+    await removerAusentes('opportunities', data.opportunities);
+  } catch (error) { console.error(error); alert('Não foi possível salvar na base compartilhada. Nada foi apagado — tente novamente.'); }
 }
 function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(Number(value || 0)); }
 function uid(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
