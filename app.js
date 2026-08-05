@@ -1,7 +1,6 @@
-import { commercialStages, implementationStages, canCreateImplementation, formatCurrencyInput, parseCurrencyInput } from './core.js';
+import { commercialStages, implementationStages, canCreateImplementation, createManualImplementation, formatCurrencyInput, parseCurrencyInput, solutions } from './core.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
 
-const solutions = ['Raio-X Captação SUS', 'Monitor de Judicialização', 'PWG — Esteira do Medicamento', 'RosalindTest', 'Linda LifeTech', 'PinkPapa', 'Radar de Editais', 'Unidades móveis'];
 const key = 'g3-projetos-piloto-v1';
 const today = new Date().toISOString().slice(0, 10);
 const initial = {
@@ -73,12 +72,15 @@ function overview(data) {
   return `<main><section class="hero"><div><span class="eyebrow">PAINEL OPERACIONAL</span><p>Registre municípios, conduza negociações e transforme contratos em projetos de implantação.</p></div><button class="primary" data-open-form>Nova oportunidade</button></section><section class="stats"><div><span>Pipeline comercial</span><strong>${money(pipeline)}</strong></div><div><span>Oportunidades abertas</span><strong>${data.opportunities.length}</strong></div><div><span>Implantações em andamento</span><strong>${active}</strong></div><div><span>Próximas ações hoje</span><strong>${due}</strong></div></section><section class="notice"><strong>Proteção de dados:</strong> este piloto é administrativo. Não registre dados de pacientes, prontuários ou decisões judiciais individualizadas.</section><section class="split"><div><h2>Comercial</h2><p>Municípios, soluções, valor estimado e próximo passo.</p><button class="ghost" data-page="commercial">Abrir pipeline →</button></div><div><h2>Implantação</h2><p>Projetos contratados, marcos, riscos e pendências.</p><button class="ghost" data-page="implementation">Abrir implantações →</button></div></section></main>`;
 }
 function commercial(data) { return `<main><section class="page-title"><div><span class="eyebrow">PIPELINE</span><h2>Comercial</h2><p>Oportunidades por município e solução.</p></div><button class="primary" data-open-form>+ Nova oportunidade</button></section>${board(commercialStages, data.opportunities, 'commercial', data)}</main>`; }
-function implementation(data) { return `<main><section class="page-title"><div><span class="eyebrow">OPERAÇÃO</span><h2>Gestão da implantação</h2><p>Projetos criados exclusivamente após a contratação.</p></div><span class="pill">${data.implementations.length} projetos</span></section>${board(implementationStages, data.implementations, 'implementation', data)}</main>`; }
+function implementation(data) { return `<main><section class="page-title"><div><span class="eyebrow">OPERAÇÃO</span><h2>Gestão da implantação</h2><p>Projetos criados manualmente ou após a contratação.</p></div><div class="page-actions"><span class="pill">${data.implementations.length} projetos</span><button class="primary" data-open-implementation-form>+ Novo projeto</button></div></section>${board(implementationStages, data.implementations, 'implementation', data)}</main>`; }
 function modal(item) {
   const editing = Boolean(item);
   const value = item ? formatCurrencyInput(Math.round(Number(item.value || 0) * 100)) : 'R$ 0,00';
   const attachments = item?.attachments || [];
   return `<dialog open class="opportunity-dialog"><form id="opportunity-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'GERENCIAR OPORTUNIDADE' : 'NOVA OPORTUNIDADE'}</span><h2>${editing ? 'Editar oportunidade' : 'Nova oportunidade'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option ${x === item?.solution ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Comercial')}" /></label><label>Valor estimado (R$)<input name="value" required inputmode="numeric" value="${value}" /></label><label>Próximo passo<input name="nextAction" required value="${escapeHtml(item?.nextAction)}" placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${item?.due || today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade">${escapeHtml(item?.notes)}</textarea></label><label class="attachment-field">Anexar documento<input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" /><small>Arquivos de até 1,5 MB ficam neste navegador.</small>${attachmentLinks(attachments)}</label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button>${editing ? `<button type="button" class="danger" data-delete="${item.id}">Remover</button>` : ''}<button class="primary">${editing ? 'Salvar alterações' : 'Salvar oportunidade'}</button></div></form></dialog>`;
+}
+function implementationModal() {
+  return `<dialog open class="opportunity-dialog"><form id="implementation-form"><div class="modal-title"><div><span class="eyebrow">NOVO PROJETO</span><h2>Cadastrar implantação</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="Implantação" /></label><label>Próximo marco<input name="nextMilestone" required placeholder="Ex.: realizar kick-off" /></label><label>Riscos<textarea name="risks" placeholder="Ex.: agenda do município"></textarea></label><label class="attachment-field">Dependências<textarea name="dependencies" placeholder="Ex.: contrato assinado, acesso aos sistemas"></textarea></label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button><button class="primary">Salvar projeto</button></div></form></dialog>`;
 }
 function closeForm() { app.querySelector('.opportunity-dialog')?.remove(); }
 function readAttachment(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result }); reader.onerror = reject; reader.readAsDataURL(file); }); }
@@ -107,17 +109,30 @@ function openOpportunityModal(data, item) {
   try { app.insertAdjacentHTML('beforeend', modal(item)); bindForm(data, item?.id); }
   catch (error) { console.error(error); alert('Não foi possível abrir a edição. Atualize a página e tente novamente.'); }
 }
+function openImplementationModal(data) {
+  app.insertAdjacentHTML('beforeend', implementationModal());
+  const form = app.querySelector('#implementation-form');
+  form.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
+  form.addEventListener('submit', (event) => saveImplementation(event, data));
+}
+function saveImplementation(event, data) {
+  event.preventDefault();
+  const raw = Object.fromEntries(new FormData(event.currentTarget));
+  data.implementations.push(createManualImplementation(raw, uid('impl')));
+  save(data); closeForm(); page = 'implementation'; render();
+}
 function removeOpportunity(data, id) {
   if (!window.confirm('Remover esta oportunidade? Esta ação não pode ser desfeita.')) return;
   data.opportunities = data.opportunities.filter((item) => item.id !== id);
   save(data); closeForm(); render();
 }
 app.addEventListener('click', (event) => {
-  const target = event.target.closest('[data-page], [data-open-form], [data-edit], [data-delete], [data-convert]');
+  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-edit], [data-delete], [data-convert]');
   if (!target) return;
   const data = load();
   if (target.dataset.page) { page = target.dataset.page; render(); return; }
   if (target.hasAttribute('data-open-form')) { openOpportunityModal(data); return; }
+  if (target.hasAttribute('data-open-implementation-form')) { openImplementationModal(data); return; }
   if (target.dataset.edit) { openOpportunityModal(data, data.opportunities.find((item) => item.id === target.dataset.edit)); return; }
   if (target.dataset.delete) { removeOpportunity(data, target.dataset.delete); return; }
   if (target.dataset.convert) {
