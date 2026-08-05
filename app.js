@@ -1,4 +1,4 @@
-import { commercialStages, implementationStages, canCreateImplementation } from './core.js';
+import { commercialStages, implementationStages, canCreateImplementation, eligibleOpportunities, implementationFromOpportunity, directImplementation } from './core.js';
 
 const solutions = ['Raio-X Captação SUS', 'Monitor de Judicialização', 'PWG — Esteira do Medicamento', 'RosalindTest', 'Linda LifeTech', 'PinkPapa', 'Radar de Editais', 'Brain27'];
 const key = 'g3-projetos-piloto-v1';
@@ -41,17 +41,68 @@ function commercial(data) {
   return `<main><section class="page-title"><div><span class="eyebrow">PIPELINE</span><h2>Comercial</h2><p>Oportunidades por município e solução.</p></div><button class="primary" data-open-form>+ Nova oportunidade</button></section>${board(commercialStages, data.opportunities, 'commercial', data)}</main>`;
 }
 function implementation(data) {
-  return `<main><section class="page-title"><div><span class="eyebrow">OPERAÇÃO</span><h2>Gestão da implantação</h2><p>Projetos criados exclusivamente após a contratação.</p></div><span class="pill">${data.implementations.length} projetos</span></section>${board(implementationStages, data.implementations, 'implementation', data)}</main>`;
+  return `<main><section class="page-title"><div><span class="eyebrow">OPERAÇÃO</span><h2>Gestão da implantação</h2><p>Projetos derivados de contratos fechados no comercial ou registrados diretamente.</p></div><div class="page-actions"><span class="pill">${data.implementations.length} projetos</span><button class="primary" data-open-implementation>+ Nova implantação</button></div></section>${board(implementationStages, data.implementations, 'implementation', data)}</main>`;
 }
-function modal() {
-  return `<dialog open><form method="dialog" id="opportunity-form"><div class="modal-title"><h2>Nova oportunidade</h2><button value="cancel" aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="Comercial" /></label><label>Valor estimado (R$)<input name="value" type="number" min="0" value="0" /></label><label>Próximo passo<input name="nextAction" required placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade"></textarea></label></div><div class="modal-footer"><button value="cancel" class="ghost">Cancelar</button><button class="primary">Salvar oportunidade</button></div></form></dialog>`;
+function opportunityModal() {
+  return `<dialog open><form method="dialog" id="opportunity-form"><div class="modal-title"><h2>Nova oportunidade</h2><button value="cancel" formnovalidate aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="Comercial" /></label><label>Valor estimado (R$)<input name="value" type="number" min="0" value="0" /></label><label>Próximo passo<input name="nextAction" required placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade"></textarea></label></div><div class="modal-footer"><button value="cancel" formnovalidate class="ghost">Cancelar</button><button class="primary">Salvar oportunidade</button></div></form></dialog>`;
+}
+
+// Duas origens, porque a realidade tem duas. A regra do piloto continua de pe:
+// derivar so lista contrato fechado que ainda nao virou projeto, e registro
+// direto nasce sem vinculo (ver directImplementation em core.js).
+function implementationModal(data) {
+  const eligible = eligibleOpportunities(data.opportunities, data.implementations);
+  const derivavel = eligible.length > 0;
+  return `<dialog open><form method="dialog" id="implementation-form"><div class="modal-title"><h2>Nova implantação</h2><button value="cancel" formnovalidate aria-label="Fechar">×</button></div><div class="origin-choice"><label><input type="radio" name="origin" value="opportunity" ${derivavel ? 'checked' : 'disabled'} />Derivar de contrato fechado</label><label><input type="radio" name="origin" value="direct" ${derivavel ? '' : 'checked'} />Registrar projeto já contratado</label></div><div data-origin-panel="opportunity"><div class="form-grid"><label>Oportunidade contratada<select name="sourceOpportunityId">${eligible.map((x) => `<option value="${x.id}">${x.municipality} · ${x.state} — ${x.solution}</option>`).join('')}</select></label></div><p class="muted small">O projeto nasce em Kick-off e herda município, UF, solução e responsável da oportunidade. A oportunidade deixa de aparecer nesta lista, para não gerar projeto duplicado.</p></div><div data-origin-panel="direct">${derivavel ? '' : '<p class="empty">Nenhuma oportunidade contratada sem projeto derivado. Feche um contrato no Comercial, ou registre aqui um projeto que já vinha de fora do funil.</p>'}<div class="form-grid"><label>Município<input name="municipality" data-obrigatorio placeholder="Ex.: Sobral" /></label><label>UF<input name="state" data-obrigatorio maxlength="2" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" data-obrigatorio value="Implantação" /></label><label>Fase atual<select name="stage">${implementationStages.map(([id, name]) => `<option value="${id}">${name}</option>`).join('')}</select></label><label>Próximo marco<input name="nextMilestone" data-obrigatorio placeholder="Ex.: realizar reunião de kick-off" /></label><label>Riscos<textarea name="risks" placeholder="O que pode atrasar o projeto"></textarea></label><label>Dependências<textarea name="dependencies" placeholder="O que depende do ente ou de terceiros"></textarea></label></div><label class="confirma"><input type="checkbox" name="contratoAssinado" data-obrigatorio />Confirmo que existe contrato assinado para este projeto.</label></div><div class="modal-footer"><button value="cancel" formnovalidate class="ghost">Cancelar</button><button class="primary">Salvar implantação</button></div></form></dialog>`;
+}
+
+// Um dialogo por vez, e "Cancelar" fecha sem passar pela validacao -- os
+// campos obrigatorios de um formulario vazio bloqueavam ate o cancelamento.
+function openModal(html, onSubmit) {
+  app.querySelector('dialog')?.remove();
+  app.insertAdjacentHTML('beforeend', html);
+  const dialog = app.querySelector('dialog');
+  const form = dialog.querySelector('form');
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (event.submitter?.value === 'cancel') { dialog.remove(); return; }
+    onSubmit(Object.fromEntries(new FormData(form)));
+  });
+  return form;
+}
+
+// Campo escondido com required trava o envio sem conseguir mostrar o erro (o
+// navegador nao foca o que nao esta na tela). Por isso o required entra e sai
+// junto com o painel, em vez de ficar fixo no HTML.
+function alternarOrigem(form) {
+  const escolhida = form.querySelector('[name="origin"]:checked').value;
+  form.querySelectorAll('[data-origin-panel]').forEach((painel) => {
+    const ativo = painel.dataset.originPanel === escolhida;
+    painel.hidden = !ativo;
+    painel.querySelectorAll('[data-obrigatorio]').forEach((campo) => { campo.required = ativo; });
+  });
 }
 function render() {
   const data = load();
   app.innerHTML = nav() + (page === 'overview' ? overview(data) : page === 'commercial' ? commercial(data) : implementation(data));
   app.querySelectorAll('[data-page]').forEach((el) => el.addEventListener('click', () => { page = el.dataset.page; render(); }));
   app.querySelectorAll('[data-move]').forEach((el) => el.addEventListener('change', () => { const list = el.dataset.move === 'commercial' ? data.opportunities : data.implementations; const item = list.find((x) => x.id === el.dataset.id); item.stage = el.value; save(data); render(); }));
-  app.querySelectorAll('[data-convert]').forEach((el) => el.addEventListener('click', () => { const source = data.opportunities.find((x) => x.id === el.dataset.convert); if (!canCreateImplementation(source, data.implementations)) return; data.implementations.push({ id: uid('impl'), sourceOpportunityId: source.id, municipality: source.municipality, state: source.state, solution: source.solution, owner: source.owner, stage: 'kickoff', nextMilestone: 'Realizar reunião de kick-off', risks: '', dependencies: '' }); save(data); page = 'implementation'; render(); }));
-  app.querySelector('[data-open-form]')?.addEventListener('click', () => { app.insertAdjacentHTML('beforeend', modal()); const form = app.querySelector('#opportunity-form'); form.addEventListener('submit', (event) => { event.preventDefault(); const value = Object.fromEntries(new FormData(form)); data.opportunities.push({ ...value, id: uid('opp'), stage: 'mapped', value: Number(value.value) }); save(data); render(); }); });
+  app.querySelectorAll('[data-convert]').forEach((el) => el.addEventListener('click', () => { const source = data.opportunities.find((x) => x.id === el.dataset.convert); if (!canCreateImplementation(source, data.implementations)) return; data.implementations.push(implementationFromOpportunity(source, uid('impl'))); save(data); page = 'implementation'; render(); }));
+  app.querySelector('[data-open-form]')?.addEventListener('click', () => { openModal(opportunityModal(), (value) => { data.opportunities.push({ ...value, id: uid('opp'), stage: 'mapped', value: Number(value.value) }); save(data); render(); }); });
+  app.querySelector('[data-open-implementation]')?.addEventListener('click', () => {
+    const form = openModal(implementationModal(data), (value) => {
+      if (value.origin === 'opportunity') {
+        const source = data.opportunities.find((x) => x.id === value.sourceOpportunityId);
+        if (!source || !canCreateImplementation(source, data.implementations)) return;
+        data.implementations.push(implementationFromOpportunity(source, uid('impl')));
+      } else {
+        data.implementations.push(directImplementation(value, uid('impl')));
+      }
+      save(data);
+      render();
+    });
+    form.querySelectorAll('[name="origin"]').forEach((el) => el.addEventListener('change', () => alternarOrigem(form)));
+    alternarOrigem(form);
+  });
 }
 render();
