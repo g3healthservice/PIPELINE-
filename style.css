@@ -68,6 +68,7 @@ main { max-width: 1500px; margin: auto; padding: 38px 28px; }
 .card p { font-size: .88rem; margin-top: 5px; }
 .tag { font-size: .7rem; font-weight: 800; color: #087b6a; }
 .muted, .empty { color: #718084; }
+.small { font-size: .82rem; line-height: 1.45; margin-top: 14px; }
 .empty { text-align: center; font-size: .85rem; margin-top: 30px; }
 .card-actions { margin-top: 13px; display: flex; gap: 7px; flex-wrap: wrap; }
 .attachments { display: grid; gap: 4px; margin-top: 9px; }

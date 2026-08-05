@@ -79,11 +79,19 @@ function attachmentLinks(attachments = []) {
   if (!attachments.length) return '';
   return `<div class="attachments">${attachments.map((file) => `<a href="${file.data}" download="${escapeHtml(file.name)}">📎 ${escapeHtml(file.name)}</a>`).join('')}</div>`;
 }
+// Se a solucao gravada nao estiver mais na lista (a lista ja mudou uma vez, e
+// vai mudar de novo), ela entra como opcao mesmo assim. Sem isso, abrir a
+// edicao de um registro antigo trocaria a solucao dele em silencio pela
+// primeira da lista -- o usuario salva achando que so mexeu na descricao.
+function solutionOptions(atual) {
+  const lista = !atual || solutions.includes(atual) ? solutions : [atual, ...solutions];
+  return lista.map((x) => `<option ${x === atual ? 'selected' : ''}>${escapeHtml(x)}</option>`).join('');
+}
 function card(item, stages, type, data) {
   const canConvert = type === 'commercial' && canCreateImplementation(item, data.implementations);
   const controls = type === 'commercial'
     ? `<button class="ghost compact" data-edit="${item.id}">Editar</button><button class="danger compact" data-delete="${item.id}">Remover</button>${canConvert ? `<button class="primary compact" data-convert="${item.id}">Criar implantação</button>` : ''}`
-    : '';
+    : `<button class="ghost compact" data-edit-implementation="${item.id}">Editar</button>`;
   return `<article class="card"><span class="tag">${escapeHtml(item.solution)}</span><h3>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h3><p>${type === 'commercial' ? money(item.value) : `Responsável: ${escapeHtml(item.owner)}`}</p><p class="muted">${escapeHtml(type === 'commercial' ? item.nextAction : item.nextMilestone || 'Definir próximo marco')}</p>${type === 'commercial' ? attachmentLinks(item.attachments) : ''}<div class="card-actions"><select data-move="${type}" data-id="${item.id}">${stages.map(([id, name]) => `<option value="${id}" ${id === item.stage ? 'selected' : ''}>${name}</option>`).join('')}</select>${controls}</div></article>`;
 }
 function board(stages, items, type, data) { return `<section class="board">${stages.map(([id, name]) => `<div class="column"><div class="column-title"><strong>${name}</strong><span>${items.filter((x) => x.stage === id).length}</span></div>${items.filter((x) => x.stage === id).map((x) => card(x, stages, type, data)).join('') || '<p class="empty">Sem itens</p>'}</div>`).join('')}</section>`; }
@@ -99,10 +107,14 @@ function modal(item) {
   const editing = Boolean(item);
   const value = item ? formatCurrencyInput(Math.round(Number(item.value || 0) * 100)) : 'R$ 0,00';
   const attachments = item?.attachments || [];
-  return `<dialog open class="opportunity-dialog"><form id="opportunity-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'GERENCIAR OPORTUNIDADE' : 'NOVA OPORTUNIDADE'}</span><h2>${editing ? 'Editar oportunidade' : 'Nova oportunidade'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option ${x === item?.solution ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Comercial')}" /></label><label>Valor estimado (R$)<input name="value" required inputmode="numeric" value="${value}" /></label><label>Próximo passo<input name="nextAction" required value="${escapeHtml(item?.nextAction)}" placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${item?.due || today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade">${escapeHtml(item?.notes)}</textarea></label><label class="attachment-field">Anexar documento<input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" /><small>Arquivos de até 1,5 MB ficam neste navegador.</small>${attachmentLinks(attachments)}</label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button>${editing ? `<button type="button" class="danger" data-delete="${item.id}">Remover</button>` : ''}<button class="primary">${editing ? 'Salvar alterações' : 'Salvar oportunidade'}</button></div></form></dialog>`;
+  return `<dialog open class="opportunity-dialog"><form id="opportunity-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'GERENCIAR OPORTUNIDADE' : 'NOVA OPORTUNIDADE'}</span><h2>${editing ? 'Editar oportunidade' : 'Nova oportunidade'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${solutionOptions(item?.solution)}</select></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Comercial')}" /></label><label>Valor estimado (R$)<input name="value" required inputmode="numeric" value="${value}" /></label><label>Próximo passo<input name="nextAction" required value="${escapeHtml(item?.nextAction)}" placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${item?.due || today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade">${escapeHtml(item?.notes)}</textarea></label><label class="attachment-field">Anexar documento<input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" /><small>Arquivos de até 1,5 MB ficam neste navegador.</small>${attachmentLinks(attachments)}</label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button>${editing ? `<button type="button" class="danger" data-delete="${item.id}">Remover</button>` : ''}<button class="primary">${editing ? 'Salvar alterações' : 'Salvar oportunidade'}</button></div></form></dialog>`;
 }
-function implementationModal() {
-  return `<dialog open class="opportunity-dialog"><form id="implementation-form"><div class="modal-title"><div><span class="eyebrow">NOVO PROJETO</span><h2>Cadastrar implantação</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="Implantação" /></label><label>Próximo marco<input name="nextMilestone" required placeholder="Ex.: realizar kick-off" /></label><label>Riscos<textarea name="risks" placeholder="Ex.: agenda do município"></textarea></label><label class="attachment-field">Dependências<textarea name="dependencies" placeholder="Ex.: contrato assinado, acesso aos sistemas"></textarea></label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button><button class="primary">Salvar projeto</button></div></form></dialog>`;
+function implementationModal(item) {
+  const editing = Boolean(item);
+  const origem = item?.sourceOpportunityId
+    ? '<p class="muted small">Projeto derivado de uma oportunidade contratada. Editar aqui não desfaz esse vínculo.</p>'
+    : '';
+  return `<dialog open class="opportunity-dialog"><form id="implementation-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'EDITAR PROJETO' : 'NOVO PROJETO'}</span><h2>${editing ? 'Editar implantação' : 'Cadastrar implantação'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div>${origem}<div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${solutionOptions(item?.solution)}</select></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Implantação')}" /></label><label>Próximo marco<input name="nextMilestone" required value="${escapeHtml(item?.nextMilestone)}" placeholder="Ex.: realizar kick-off" /></label><label>Riscos<textarea name="risks" placeholder="Ex.: agenda do município">${escapeHtml(item?.risks)}</textarea></label><label class="attachment-field">Dependências<textarea name="dependencies" placeholder="Ex.: contrato assinado, acesso aos sistemas">${escapeHtml(item?.dependencies)}</textarea></label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button><button class="primary">${editing ? 'Salvar alterações' : 'Salvar projeto'}</button></div></form></dialog>`;
 }
 function closeForm() { app.querySelector('.opportunity-dialog')?.remove(); }
 function readAttachment(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result }); reader.onerror = reject; reader.readAsDataURL(file); }); }
@@ -131,16 +143,27 @@ function openOpportunityModal(data, item) {
   try { app.insertAdjacentHTML('beforeend', modal(item)); bindForm(data, item?.id); }
   catch (error) { console.error(error); alert('Não foi possível abrir a edição. Atualize a página e tente novamente.'); }
 }
-function openImplementationModal(data) {
-  app.insertAdjacentHTML('beforeend', implementationModal());
+function openImplementationModal(data, item) {
+  app.insertAdjacentHTML('beforeend', implementationModal(item));
   const form = app.querySelector('#implementation-form');
   form.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
-  form.addEventListener('submit', (event) => saveImplementation(event, data));
+  form.addEventListener('submit', (event) => saveImplementation(event, data, item?.id));
 }
-function saveImplementation(event, data) {
+function saveImplementation(event, data, editingId) {
   event.preventDefault();
   const raw = Object.fromEntries(new FormData(event.currentTarget));
-  data.implementations.push(createManualImplementation(raw, uid('impl')));
+  if (editingId) {
+    const existing = data.implementations.find((item) => item.id === editingId);
+    // O espalhamento de "existing" vem PRIMEIRO e nao e detalhe: id, stage e
+    // sourceOpportunityId nao estao no formulario. Se o objeto fosse montado
+    // do zero a partir do formulario, editar a descricao de um projeto
+    // derivado apagaria o vinculo com a oportunidade -- e a oportunidade
+    // voltaria a poder virar um segundo projeto.
+    const atualizado = { ...existing, ...raw };
+    data.implementations = data.implementations.map((current) => current.id === editingId ? atualizado : current);
+  } else {
+    data.implementations.push(createManualImplementation(raw, uid('impl')));
+  }
   save(data); closeForm(); page = 'implementation'; render();
 }
 function removeOpportunity(data, id) {
@@ -149,12 +172,13 @@ function removeOpportunity(data, id) {
   save(data); closeForm(); render();
 }
 app.addEventListener('click', (event) => {
-  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-edit], [data-delete], [data-convert]');
+  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-edit], [data-edit-implementation], [data-delete], [data-convert]');
   if (!target) return;
   const data = load();
   if (target.dataset.page) { page = target.dataset.page; render(); return; }
   if (target.hasAttribute('data-open-form')) { openOpportunityModal(data); return; }
   if (target.hasAttribute('data-open-implementation-form')) { openImplementationModal(data); return; }
+  if (target.dataset.editImplementation) { openImplementationModal(data, data.implementations.find((item) => item.id === target.dataset.editImplementation)); return; }
   if (target.dataset.edit) { openOpportunityModal(data, data.opportunities.find((item) => item.id === target.dataset.edit)); return; }
   if (target.dataset.delete) { removeOpportunity(data, target.dataset.delete); return; }
   if (target.dataset.convert) {

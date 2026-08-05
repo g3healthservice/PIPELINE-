@@ -36,5 +36,19 @@ test('oferece formulário para cadastrar projetos diretamente na implantação',
   assert.match(app, /function implementationModal\(/);
   assert.match(app, /id="implementation-form"/);
   assert.match(app, /name="nextMilestone" required/);
-  assert.match(app, /function saveImplementation\(event, data\)/);
+  assert.match(app, /function saveImplementation\(event, data, editingId\)/);
+});
+
+test('permite editar um projeto de implantação sem perder o vínculo de origem', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /data-edit-implementation=/);
+  assert.match(app, /function implementationModal\(item\)/);
+  // O espalhamento de existing ANTES de raw e o que preserva id, stage e
+  // sourceOpportunityId, que nao estao no formulario. Invertido, editar a
+  // descricao de um projeto derivado apagaria o vinculo com a oportunidade.
+  assert.match(app, /\{ \.\.\.existing, \.\.\.raw \}/);
+  // A solucao gravada tem que sobreviver mesmo se sair da lista atual.
+  assert.match(app, /function solutionOptions\(atual\)/);
+  assert.doesNotMatch(app, /solutions\.map\(\(x\) => `<option/);
 });
