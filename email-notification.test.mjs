@@ -57,3 +57,13 @@ test('a função de envio exige segredo, chama o Resend e registra o resultado',
   assert.match(source, /https:\/\/api\.resend\.com\/emails/);
   assert.match(source, /opportunity_notification_log/);
 });
+
+test('a migração notifica apenas inserções e mudanças reais de oportunidade', async () => {
+  const sql = await readFile(new URL('./supabase/email-notifications.sql', import.meta.url), 'utf8');
+
+  assert.match(sql, /create table if not exists public\.opportunity_notification_log/i);
+  assert.match(sql, /after insert or update on public\.opportunities/i);
+  assert.match(sql, /old is not distinct from new/i);
+  assert.match(sql, /net\.http_post/i);
+  assert.match(sql, /revoke all on public\.opportunity_notification_log from anon/i);
+});
