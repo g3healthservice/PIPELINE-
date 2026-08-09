@@ -126,7 +126,7 @@ function implementationModal(item) {
 }
 function opportunityDetailsModal(item) {
   const field = (label, value) => `<div><dt>${label}</dt><dd>${escapeHtml(value || 'Não informado')}</dd></div>`;
-  return `<dialog open class="opportunity-dialog"><section class="details-dialog" data-view-detail><div class="modal-title"><div><span class="eyebrow">DETALHES DA OPORTUNIDADE</span><h2>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><dl class="details-grid">${field('Solução', item.solution)}${field('Responsável', item.owner)}${field('Valor estimado', money(item.value))}${field('Próximo passo', item.nextAction)}${field('Data do próximo passo', item.due)}${field('Observações', item.notes)}</dl><div class="detail-attachments"><strong>Anexos</strong>${attachmentLinks(item.attachments) || '<p class="muted">Sem anexos.</p>'}</div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Fechar</button></div></section></dialog>`;
+  return `<dialog class="opportunity-dialog"><section class="details-dialog" data-view-detail><div class="modal-title"><div><span class="eyebrow">DETALHES DA OPORTUNIDADE</span><h2>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><dl class="details-grid">${field('Solução', item.solution)}${field('Responsável', item.owner)}${field('Valor estimado', money(item.value))}${field('Próximo passo', item.nextAction)}${field('Data do próximo passo', item.due)}${field('Observações', item.notes)}</dl><div class="detail-attachments"><strong>Anexos</strong>${attachmentLinks(item.attachments) || '<p class="muted">Sem anexos.</p>'}</div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Fechar</button></div></section></dialog>`;
 }
 function closeForm() { app.querySelector('.opportunity-dialog')?.remove(); }
 function readAttachment(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result }); reader.onerror = reject; reader.readAsDataURL(file); }); }
@@ -160,6 +160,7 @@ function openOpportunityDetails(data, id) {
   const item = data.opportunities.find((opportunity) => opportunity.id === id);
   if (!item) return;
   app.insertAdjacentHTML('beforeend', opportunityDetailsModal(item));
+  app.querySelector('.opportunity-dialog').showModal();
   app.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
 }
 function openImplementationModal(data, item) {

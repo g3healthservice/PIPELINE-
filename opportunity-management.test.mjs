@@ -69,3 +69,10 @@ test('oferece uma janela somente de leitura para detalhes da oportunidade', asyn
   assert.match(app, /data-view-detail/);
   assert.match(app, /target\.dataset\.view/);
 });
+
+test('abre os detalhes na camada modal da tela', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /function openOpportunityDetails\(data, id\)[\s\S]*\.showModal\(\)/);
+  assert.match(app, /function opportunityDetailsModal\(item\)[\s\S]*<dialog class="opportunity-dialog">/);
+});
