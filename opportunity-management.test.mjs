@@ -34,3 +34,11 @@ test('oferece formulário para cadastrar projetos diretamente na implantação',
   assert.match(app, /name="nextMilestone" required/);
   assert.match(app, /function saveImplementation\(event, data\)/);
 });
+
+test('oferece campo obrigatório para nome quando a solução é avulsa', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /name="customSolution"/);
+  assert.match(app, /function toggleCustomSolutionField\(form\)/);
+  assert.match(app, /normalizeOpportunitySolution\(raw\)/);
+});

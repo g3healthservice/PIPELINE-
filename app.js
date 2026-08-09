@@ -1,4 +1,4 @@
-import { commercialStages, implementationStages, canCreateImplementation, createManualImplementation, formatCurrencyInput, parseCurrencyInput, solutions } from './core.js';
+import { commercialStages, implementationStages, canCreateImplementation, createManualImplementation, customSolutionLabel, formatCurrencyInput, normalizeOpportunitySolution, parseCurrencyInput, solutions } from './core.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
 
 const key = 'g3-projetos-piloto-v1';
@@ -77,7 +77,11 @@ function modal(item) {
   const editing = Boolean(item);
   const value = item ? formatCurrencyInput(Math.round(Number(item.value || 0) * 100)) : 'R$ 0,00';
   const attachments = item?.attachments || [];
-  return `<dialog open class="opportunity-dialog"><form id="opportunity-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'GERENCIAR OPORTUNIDADE' : 'NOVA OPORTUNIDADE'}</span><h2>${editing ? 'Editar oportunidade' : 'Nova oportunidade'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option ${x === item?.solution ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Comercial')}" /></label><label>Valor estimado (R$)<input name="value" required inputmode="numeric" value="${value}" /></label><label>Próximo passo<input name="nextAction" required value="${escapeHtml(item?.nextAction)}" placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${item?.due || today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade">${escapeHtml(item?.notes)}</textarea></label><label class="attachment-field">Anexar documento<input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" /><small>Arquivos de até 1,5 MB ficam neste navegador.</small>${attachmentLinks(attachments)}</label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button>${editing ? `<button type="button" class="danger" data-delete="${item.id}">Remover</button>` : ''}<button class="primary">${editing ? 'Salvar alterações' : 'Salvar oportunidade'}</button></div></form></dialog>`;
+  const isCustomSolution = item && !solutions.includes(item.solution);
+  const selectedSolution = isCustomSolution ? customSolutionLabel : item?.solution;
+  const customSolution = isCustomSolution ? item.solution : '';
+  const opportunitySolutions = [...solutions, customSolutionLabel];
+  return `<dialog open class="opportunity-dialog"><form id="opportunity-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'GERENCIAR OPORTUNIDADE' : 'NOVA OPORTUNIDADE'}</span><h2>${editing ? 'Editar oportunidade' : 'Nova oportunidade'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${opportunitySolutions.map((x) => `<option ${x === selectedSolution ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label class="custom-solution-field" ${isCustomSolution ? '' : 'hidden'}>Nome do produto/serviço<input name="customSolution" value="${escapeHtml(customSolution)}" placeholder="Ex.: consultoria especializada" /></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Comercial')}" /></label><label>Valor estimado (R$)<input name="value" required inputmode="numeric" value="${value}" /></label><label>Próximo passo<input name="nextAction" required value="${escapeHtml(item?.nextAction)}" placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${item?.due || today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade">${escapeHtml(item?.notes)}</textarea></label><label class="attachment-field">Anexar documento<input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" /><small>Arquivos de até 1,5 MB ficam neste navegador.</small>${attachmentLinks(attachments)}</label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button>${editing ? `<button type="button" class="danger" data-delete="${item.id}">Remover</button>` : ''}<button class="primary">${editing ? 'Salvar alterações' : 'Salvar oportunidade'}</button></div></form></dialog>`;
 }
 function implementationModal() {
   return `<dialog open class="opportunity-dialog"><form id="implementation-form"><div class="modal-title"><div><span class="eyebrow">NOVO PROJETO</span><h2>Cadastrar implantação</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="Implantação" /></label><label>Próximo marco<input name="nextMilestone" required placeholder="Ex.: realizar kick-off" /></label><label>Riscos<textarea name="risks" placeholder="Ex.: agenda do município"></textarea></label><label class="attachment-field">Dependências<textarea name="dependencies" placeholder="Ex.: contrato assinado, acesso aos sistemas"></textarea></label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button><button class="primary">Salvar projeto</button></div></form></dialog>`;
@@ -95,7 +99,8 @@ async function saveOpportunity(event, data, editingId) {
     if (file.size > 1_500_000) return alert('Escolha um arquivo de até 1,5 MB para este piloto.');
     attachments = [...attachments, await readAttachment(file)];
   }
-  const item = { ...existing, ...raw, id: editingId || uid('opp'), stage: existing?.stage || 'mapped', value: parseCurrencyInput(raw.value), attachments };
+  const { customSolution, ...opportunityFields } = raw;
+  const item = { ...existing, ...opportunityFields, solution: normalizeOpportunitySolution(raw), id: editingId || uid('opp'), stage: existing?.stage || 'mapped', value: parseCurrencyInput(raw.value), attachments };
   if (editingId) data.opportunities = data.opportunities.map((current) => current.id === editingId ? item : current);
   else data.opportunities.push(item);
   save(data); closeForm(); page = 'commercial'; render();
@@ -147,7 +152,15 @@ function bindForm(data, editingId) {
   form.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
   const value = form.elements.value;
   value.addEventListener('input', () => { value.value = formatCurrencyInput(value.value); });
+  form.elements.solution.addEventListener('change', () => toggleCustomSolutionField(form));
+  toggleCustomSolutionField(form);
   form.addEventListener('submit', (event) => saveOpportunity(event, data, editingId));
+}
+function toggleCustomSolutionField(form) {
+  const isCustom = form.elements.solution.value === customSolutionLabel;
+  const field = form.elements.customSolution;
+  field.closest('.custom-solution-field').hidden = !isCustom;
+  field.required = isCustom;
 }
 render();
 hydrate().then(render);
