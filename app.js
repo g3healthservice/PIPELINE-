@@ -18,7 +18,7 @@ const api = (path, options = {}) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
   headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
 });
 const opportunityRecord = (item) => ({ id: item.id, municipality: item.municipality, state: item.state, solution: item.solution, owner: item.owner, stage: item.stage, value: item.value, next_action: item.nextAction, due: item.due || null, notes: item.notes, attachments: item.attachments || [] });
-const implementationRecord = (item) => ({ id: item.id, source_opportunity_id: item.sourceOpportunityId, municipality: item.municipality, state: item.state, solution: item.solution, owner: item.owner, stage: item.stage, next_milestone: item.nextMilestone || '', risks: item.risks || '', dependencies: item.dependencies || '' });
+const implementationRecord = (item) => ({ id: item.id, source_opportunity_id: item.sourceOpportunityId ?? null, municipality: item.municipality, state: item.state, solution: item.solution, owner: item.owner, stage: item.stage, next_milestone: item.nextMilestone || '', risks: item.risks || '', dependencies: item.dependencies || '' });
 async function hydrate() {
   try {
     const [opportunities, implementations] = await Promise.all([api('opportunities?select=*'), api('implementations?select=*')]);
@@ -28,20 +28,42 @@ async function hydrate() {
   } catch (error) { console.error(error); alert('Não foi possível conectar à base compartilhada. Verifique sua internet e atualize a página.'); }
 }
 function load() { return dataCache; }
+// Grava primeiro, apaga depois -- e apaga so o que sumiu da tela.
+//
+// A versao anterior fazia o contrario: DELETE em tudo, depois INSERT em tudo.
+// Isso significa que qualquer falha DEPOIS do delete (queda de rede, aba
+// fechada, insert recusado pelo banco) deixava a base vazia, com o unico
+// exemplar dos dados vivo na memoria daquela aba. E a mensagem "tente
+// novamente" era enganosa: nao havia mais o que tentar.
+//
+// Nao resolve edicao simultanea -- duas pessoas mexendo ao mesmo tempo ainda
+// se sobrescrevem linha a linha. Resolve a destruicao.
+async function upsert(tabela, registros) {
+  if (!registros.length) return;
+  const resposta = await api(tabela, {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal,resolution=merge-duplicates' },
+    body: JSON.stringify(registros),
+  });
+  if (!resposta.ok) throw new Error(`Falha ao salvar ${tabela}: ${resposta.status}`);
+}
+async function removerAusentes(tabela, itens) {
+  const filtro = itens.length
+    ? `id=not.in.(${itens.map((item) => `"${item.id}"`).join(',')})`
+    : 'id=not.is.null';
+  const resposta = await api(`${tabela}?${filtro}`, { method: 'DELETE' });
+  if (!resposta.ok) throw new Error(`Falha ao remover de ${tabela}: ${resposta.status}`);
+}
 async function save(data) {
   try {
-    const deletedImplementations = await api('implementations?id=not.is.null', { method: 'DELETE' });
-    const deletedOpportunities = await api('opportunities?id=not.is.null', { method: 'DELETE' });
-    if (!deletedImplementations.ok || !deletedOpportunities.ok) throw new Error('Falha ao preparar o salvamento.');
-    if (data.opportunities.length) {
-      const opportunities = await api('opportunities', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.opportunities.map(opportunityRecord)) });
-      if (!opportunities.ok) throw new Error('Falha ao salvar oportunidades.');
-    }
-    if (data.implementations.length) {
-      const implementations = await api('implementations', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(data.implementations.map(implementationRecord)) });
-      if (!implementations.ok) throw new Error('Falha ao salvar implantações.');
-    }
-  } catch (error) { console.error(error); alert('Não foi possível salvar na base compartilhada. Tente novamente.'); }
+    // Oportunidade antes de implantacao: a implantacao derivada tem chave
+    // estrangeira para a oportunidade e o insert falha se ela ainda nao existe.
+    await upsert('opportunities', data.opportunities.map(opportunityRecord));
+    await upsert('implementations', data.implementations.map(implementationRecord));
+    // Na remocao, a ordem se inverte pelo mesmo motivo.
+    await removerAusentes('implementations', data.implementations);
+    await removerAusentes('opportunities', data.opportunities);
+  } catch (error) { console.error(error); alert('Não foi possível salvar na base compartilhada. Nada foi apagado — tente novamente.'); }
 }
 function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(Number(value || 0)); }
 function uid(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
@@ -57,11 +79,20 @@ function attachmentLinks(attachments = []) {
   if (!attachments.length) return '';
   return `<div class="attachments">${attachments.map((file) => `<a href="${file.data}" download="${escapeHtml(file.name)}">📎 ${escapeHtml(file.name)}</a>`).join('')}</div>`;
 }
+// Se a solucao gravada nao estiver mais na lista (a lista ja mudou uma vez, e
+// vai mudar de novo), ela entra como opcao mesmo assim. Sem isso, abrir a
+// edicao de um registro antigo trocaria a solucao dele em silencio pela
+// primeira da lista -- o usuario salva achando que so mexeu na descricao.
+function solutionOptions(atual, includeCustom = false) {
+  const lista = !atual || solutions.includes(atual) ? [...solutions] : [atual, ...solutions];
+  if (includeCustom && !lista.includes(customSolutionLabel)) lista.push(customSolutionLabel);
+  return lista.map((x) => `<option ${x === atual ? 'selected' : ''}>${escapeHtml(x)}</option>`).join('');
+}
 function card(item, stages, type, data) {
   const canConvert = type === 'commercial' && canCreateImplementation(item, data.implementations);
   const controls = type === 'commercial'
     ? `<button class="ghost compact" data-edit="${item.id}">Editar</button><button class="danger compact" data-delete="${item.id}">Remover</button>${canConvert ? `<button class="primary compact" data-convert="${item.id}">Criar implantação</button>` : ''}`
-    : '';
+    : `<button class="ghost compact" data-edit-implementation="${item.id}">Editar</button>`;
   const summary = `<span class="tag">${escapeHtml(item.solution)}</span><h3>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h3><p>${type === 'commercial' ? money(item.value) : `Responsável: ${escapeHtml(item.owner)}`}</p><p class="muted">${escapeHtml(type === 'commercial' ? item.nextAction : item.nextMilestone || 'Definir próximo marco')}</p>`;
   const clickableSummary = type === 'commercial'
     ? `<button type="button" class="card-summary" data-view="${item.id}" aria-label="Ver detalhes de ${escapeHtml(item.municipality)}">${summary}</button>`
@@ -84,11 +115,14 @@ function modal(item) {
   const isCustomSolution = item && !solutions.includes(item.solution);
   const selectedSolution = isCustomSolution ? customSolutionLabel : item?.solution;
   const customSolution = isCustomSolution ? item.solution : '';
-  const opportunitySolutions = [...solutions, customSolutionLabel];
-  return `<dialog open class="opportunity-dialog"><form id="opportunity-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'GERENCIAR OPORTUNIDADE' : 'NOVA OPORTUNIDADE'}</span><h2>${editing ? 'Editar oportunidade' : 'Nova oportunidade'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${opportunitySolutions.map((x) => `<option ${x === selectedSolution ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label class="custom-solution-field" ${isCustomSolution ? '' : 'hidden'}>Nome do produto/serviço<input name="customSolution" value="${escapeHtml(customSolution)}" placeholder="Ex.: consultoria especializada" /></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Comercial')}" /></label><label>Valor estimado (R$)<input name="value" required inputmode="numeric" value="${value}" /></label><label>Próximo passo<input name="nextAction" required value="${escapeHtml(item?.nextAction)}" placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${item?.due || today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade">${escapeHtml(item?.notes)}</textarea></label><label class="attachment-field">Anexar documento<input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" /><small>Arquivos de até 1,5 MB ficam neste navegador.</small>${attachmentLinks(attachments)}</label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button>${editing ? `<button type="button" class="danger" data-delete="${item.id}">Remover</button>` : ''}<button class="primary">${editing ? 'Salvar alterações' : 'Salvar oportunidade'}</button></div></form></dialog>`;
+  return `<dialog open class="opportunity-dialog"><form id="opportunity-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'GERENCIAR OPORTUNIDADE' : 'NOVA OPORTUNIDADE'}</span><h2>${editing ? 'Editar oportunidade' : 'Nova oportunidade'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${solutionOptions(selectedSolution, true)}</select></label><label class="custom-solution-field" ${isCustomSolution ? '' : 'hidden'}>Nome do produto/serviço<input name="customSolution" value="${escapeHtml(customSolution)}" placeholder="Ex.: consultoria especializada" /></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Comercial')}" /></label><label>Valor estimado (R$)<input name="value" required inputmode="numeric" value="${value}" /></label><label>Próximo passo<input name="nextAction" required value="${escapeHtml(item?.nextAction)}" placeholder="Ex.: agendar diagnóstico" /></label><label>Data do próximo passo<input name="due" type="date" value="${item?.due || today}" /></label><label>Observações<textarea name="notes" placeholder="Contexto da oportunidade">${escapeHtml(item?.notes)}</textarea></label><label class="attachment-field">Anexar documento<input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" /><small>Arquivos de até 1,5 MB ficam neste navegador.</small>${attachmentLinks(attachments)}</label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button>${editing ? `<button type="button" class="danger" data-delete="${item.id}">Remover</button>` : ''}<button class="primary">${editing ? 'Salvar alterações' : 'Salvar oportunidade'}</button></div></form></dialog>`;
 }
-function implementationModal() {
-  return `<dialog open class="opportunity-dialog"><form id="implementation-form"><div class="modal-title"><div><span class="eyebrow">NOVO PROJETO</span><h2>Cadastrar implantação</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="Implantação" /></label><label>Próximo marco<input name="nextMilestone" required placeholder="Ex.: realizar kick-off" /></label><label>Riscos<textarea name="risks" placeholder="Ex.: agenda do município"></textarea></label><label class="attachment-field">Dependências<textarea name="dependencies" placeholder="Ex.: contrato assinado, acesso aos sistemas"></textarea></label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button><button class="primary">Salvar projeto</button></div></form></dialog>`;
+function implementationModal(item) {
+  const editing = Boolean(item);
+  const origem = item?.sourceOpportunityId
+    ? '<p class="muted small">Projeto derivado de uma oportunidade contratada. Editar aqui não desfaz esse vínculo.</p>'
+    : '';
+  return `<dialog open class="opportunity-dialog"><form id="implementation-form"><div class="modal-title"><div><span class="eyebrow">${editing ? 'EDITAR PROJETO' : 'NOVO PROJETO'}</span><h2>${editing ? 'Editar implantação' : 'Cadastrar implantação'}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div>${origem}<div class="form-grid"><label>Município<input name="municipality" required value="${escapeHtml(item?.municipality)}" placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" value="${escapeHtml(item?.state)}" placeholder="CE" /></label><label>Solução<select name="solution">${solutionOptions(item?.solution)}</select></label><label>Responsável<input name="owner" required value="${escapeHtml(item?.owner || 'Implantação')}" /></label><label>Próximo marco<input name="nextMilestone" required value="${escapeHtml(item?.nextMilestone)}" placeholder="Ex.: realizar kick-off" /></label><label>Riscos<textarea name="risks" placeholder="Ex.: agenda do município">${escapeHtml(item?.risks)}</textarea></label><label class="attachment-field">Dependências<textarea name="dependencies" placeholder="Ex.: contrato assinado, acesso aos sistemas">${escapeHtml(item?.dependencies)}</textarea></label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button><button class="primary">${editing ? 'Salvar alterações' : 'Salvar projeto'}</button></div></form></dialog>`;
 }
 function opportunityDetailsModal(item) {
   const field = (label, value) => `<div><dt>${label}</dt><dd>${escapeHtml(value || 'Não informado')}</dd></div>`;
@@ -128,16 +162,27 @@ function openOpportunityDetails(data, id) {
   app.insertAdjacentHTML('beforeend', opportunityDetailsModal(item));
   app.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
 }
-function openImplementationModal(data) {
-  app.insertAdjacentHTML('beforeend', implementationModal());
+function openImplementationModal(data, item) {
+  app.insertAdjacentHTML('beforeend', implementationModal(item));
   const form = app.querySelector('#implementation-form');
   form.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
-  form.addEventListener('submit', (event) => saveImplementation(event, data));
+  form.addEventListener('submit', (event) => saveImplementation(event, data, item?.id));
 }
-function saveImplementation(event, data) {
+function saveImplementation(event, data, editingId) {
   event.preventDefault();
   const raw = Object.fromEntries(new FormData(event.currentTarget));
-  data.implementations.push(createManualImplementation(raw, uid('impl')));
+  if (editingId) {
+    const existing = data.implementations.find((item) => item.id === editingId);
+    // O espalhamento de "existing" vem PRIMEIRO e nao e detalhe: id, stage e
+    // sourceOpportunityId nao estao no formulario. Se o objeto fosse montado
+    // do zero a partir do formulario, editar a descricao de um projeto
+    // derivado apagaria o vinculo com a oportunidade -- e a oportunidade
+    // voltaria a poder virar um segundo projeto.
+    const atualizado = { ...existing, ...raw };
+    data.implementations = data.implementations.map((current) => current.id === editingId ? atualizado : current);
+  } else {
+    data.implementations.push(createManualImplementation(raw, uid('impl')));
+  }
   save(data); closeForm(); page = 'implementation'; render();
 }
 function removeOpportunity(data, id) {
@@ -146,13 +191,14 @@ function removeOpportunity(data, id) {
   save(data); closeForm(); render();
 }
 app.addEventListener('click', (event) => {
-  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-view], [data-edit], [data-delete], [data-convert]');
+  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-view], [data-edit], [data-edit-implementation], [data-delete], [data-convert]');
   if (!target) return;
   const data = load();
   if (target.dataset.page) { page = target.dataset.page; render(); return; }
   if (target.hasAttribute('data-open-form')) { openOpportunityModal(data); return; }
   if (target.hasAttribute('data-open-implementation-form')) { openImplementationModal(data); return; }
   if (target.dataset.view) { openOpportunityDetails(data, target.dataset.view); return; }
+  if (target.dataset.editImplementation) { openImplementationModal(data, data.implementations.find((item) => item.id === target.dataset.editImplementation)); return; }
   if (target.dataset.edit) { openOpportunityModal(data, data.opportunities.find((item) => item.id === target.dataset.edit)); return; }
   if (target.dataset.delete) { removeOpportunity(data, target.dataset.delete); return; }
   if (target.dataset.convert) {

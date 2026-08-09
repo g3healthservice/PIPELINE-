@@ -14,7 +14,11 @@ test('oferece edição, remoção, cancelamento e anexo na oportunidade', async 
   assert.match(app, /app\.addEventListener\('click'/);
   assert.doesNotMatch(app, /save\(data\);\n  return data;/);
   assert.match(app, /Não foi possível abrir a edição/);
-  assert.match(index, /app\.js\?v=20260809-1/);
+  // O que importa e que o script seja versionado -- o GitHub Pages serve
+  // app.js com cache agressivo e sem isso a correcao nao chega em quem ja
+  // abriu o site. Prender o teste a UMA versao fazia toda troca legitima de
+  // cache-buster quebrar a suite.
+  assert.match(index, /app\.js\?v=\d{8}-\d+/);
   assert.match(index, /supabase-config\.js/);
   assert.match(app, /from '\.\/supabase-config\.js'/);
   assert.match(app, /\/rest\/v1/);
@@ -32,7 +36,21 @@ test('oferece formulário para cadastrar projetos diretamente na implantação',
   assert.match(app, /function implementationModal\(/);
   assert.match(app, /id="implementation-form"/);
   assert.match(app, /name="nextMilestone" required/);
-  assert.match(app, /function saveImplementation\(event, data\)/);
+  assert.match(app, /function saveImplementation\(event, data, editingId\)/);
+});
+
+test('permite editar um projeto de implantação sem perder o vínculo de origem', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /data-edit-implementation=/);
+  assert.match(app, /function implementationModal\(item\)/);
+  // O espalhamento de existing ANTES de raw e o que preserva id, stage e
+  // sourceOpportunityId, que nao estao no formulario. Invertido, editar a
+  // descricao de um projeto derivado apagaria o vinculo com a oportunidade.
+  assert.match(app, /\{ \.\.\.existing, \.\.\.raw \}/);
+  // A solucao gravada tem que sobreviver mesmo se sair da lista atual.
+  assert.match(app, /function solutionOptions\(atual, includeCustom/);
+  assert.doesNotMatch(app, /solutions\.map\(\(x\) => `<option/);
 });
 
 test('oferece campo obrigatório para nome quando a solução é avulsa', async () => {
