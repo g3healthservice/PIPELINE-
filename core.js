@@ -14,6 +14,8 @@ export const solutions = [
   'Dr ao vivo',
 ];
 
+export const customSolutionLabel = 'Outro / avulso';
+
 export function canCreateImplementation(opportunity, implementations) {
   return opportunity.stage === 'contracted' && !implementations.some(
     (item) => item.sourceOpportunityId === opportunity.id,
@@ -32,6 +34,10 @@ export function createManualImplementation(input, id) {
     risks: input.risks || '',
     dependencies: input.dependencies || '',
   };
+}
+
+export function normalizeOpportunitySolution(input) {
+  return input.solution === customSolutionLabel ? input.customSolution.trim() : input.solution;
 }
 
 export function formatCurrencyInput(value) {

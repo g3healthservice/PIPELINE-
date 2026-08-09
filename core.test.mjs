@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canCreateImplementation, createManualImplementation, formatCurrencyInput, parseCurrencyInput, solutions } from './core.js';
+import { canCreateImplementation, createManualImplementation, customSolutionLabel, formatCurrencyInput, normalizeOpportunitySolution, parseCurrencyInput, solutions } from './core.js';
 
 test('permite criar implantação apenas para oportunidade contratada sem projeto derivado', () => {
   const opportunity = { id: 'opp-1', stage: 'contracted' };
@@ -29,4 +29,12 @@ test('cria um projeto manual de implantação em kick-off sem oportunidade de or
   });
   assert.equal('sourceOpportunityId' in project, false);
   assert.ok(solutions.includes('Dr ao vivo'));
+});
+
+test('salva o nome digitado quando a oportunidade usa solução avulsa', () => {
+  assert.equal(
+    normalizeOpportunitySolution({ solution: customSolutionLabel, customSolution: '  Serviço especial  ' }),
+    'Serviço especial',
+  );
+  assert.equal(normalizeOpportunitySolution({ solution: 'Dr ao vivo', customSolution: '' }), 'Dr ao vivo');
 });
