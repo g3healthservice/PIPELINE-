@@ -77,6 +77,16 @@ test('abre os detalhes na camada modal da tela', async () => {
   assert.match(app, /function opportunityDetailsModal\(item\)[\s\S]*<dialog class="opportunity-dialog">/);
 });
 
+test('oferece detalhes somente para consulta ao clicar em uma implantação', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /data-view-implementation=/);
+  assert.match(app, /function implementationDetailsModal\(item\)/);
+  assert.match(app, /data-view-implementation-detail/);
+  assert.match(app, /target\.dataset\.viewImplementation/);
+  assert.match(app, /function openImplementationDetails\(data, id\)[\s\S]*\.showModal\(\)/);
+});
+
 test('abre os formulários de cadastro na camada modal da tela', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 

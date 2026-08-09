@@ -96,7 +96,7 @@ function card(item, stages, type, data) {
   const summary = `<span class="tag">${escapeHtml(item.solution)}</span><h3>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h3><p>${type === 'commercial' ? money(item.value) : `Responsável: ${escapeHtml(item.owner)}`}</p><p class="muted">${escapeHtml(type === 'commercial' ? item.nextAction : item.nextMilestone || 'Definir próximo marco')}</p>`;
   const clickableSummary = type === 'commercial'
     ? `<button type="button" class="card-summary" data-view="${item.id}" aria-label="Ver detalhes de ${escapeHtml(item.municipality)}">${summary}</button>`
-    : summary;
+    : `<button type="button" class="card-summary" data-view-implementation="${item.id}" aria-label="Ver detalhes de ${escapeHtml(item.municipality)}">${summary}</button>`;
   return `<article class="card">${clickableSummary}${type === 'commercial' ? attachmentLinks(item.attachments) : ''}<div class="card-actions"><select data-move="${type}" data-id="${item.id}">${stages.map(([id, name]) => `<option value="${id}" ${id === item.stage ? 'selected' : ''}>${name}</option>`).join('')}</select>${controls}</div></article>`;
 }
 function board(stages, items, type, data) { return `<section class="board">${stages.map(([id, name]) => `<div class="column"><div class="column-title"><strong>${name}</strong><span>${items.filter((x) => x.stage === id).length}</span></div>${items.filter((x) => x.stage === id).map((x) => card(x, stages, type, data)).join('') || '<p class="empty">Sem itens</p>'}</div>`).join('')}</section>`; }
@@ -127,6 +127,11 @@ function implementationModal(item) {
 function opportunityDetailsModal(item) {
   const field = (label, value) => `<div><dt>${label}</dt><dd>${escapeHtml(value || 'Não informado')}</dd></div>`;
   return `<dialog class="opportunity-dialog"><section class="details-dialog" data-view-detail><div class="modal-title"><div><span class="eyebrow">DETALHES DA OPORTUNIDADE</span><h2>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><dl class="details-grid">${field('Solução', item.solution)}${field('Responsável', item.owner)}${field('Valor estimado', money(item.value))}${field('Próximo passo', item.nextAction)}${field('Data do próximo passo', item.due)}${field('Observações', item.notes)}</dl><div class="detail-attachments"><strong>Anexos</strong>${attachmentLinks(item.attachments) || '<p class="muted">Sem anexos.</p>'}</div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Fechar</button></div></section></dialog>`;
+}
+function implementationDetailsModal(item) {
+  const field = (label, value) => `<div><dt>${label}</dt><dd>${escapeHtml(value || 'Não informado')}</dd></div>`;
+  const stage = implementationStages.find(([id]) => id === item.stage)?.[1] || item.stage;
+  return `<dialog class="opportunity-dialog"><section class="details-dialog" data-view-implementation-detail><div class="modal-title"><div><span class="eyebrow">DETALHES DA IMPLANTAÇÃO</span><h2>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><dl class="details-grid">${field('Solução', item.solution)}${field('Responsável', item.owner)}${field('Etapa', stage)}${field('Próximo marco', item.nextMilestone)}${field('Riscos', item.risks)}${field('Dependências', item.dependencies)}</dl><div class="modal-footer"><button type="button" class="ghost" data-close-form>Fechar</button></div></section></dialog>`;
 }
 function closeForm() { app.querySelector('.opportunity-dialog')?.remove(); }
 function readAttachment(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result }); reader.onerror = reject; reader.readAsDataURL(file); }); }
@@ -163,6 +168,13 @@ function openOpportunityDetails(data, id) {
   app.querySelector('.opportunity-dialog').showModal();
   app.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
 }
+function openImplementationDetails(data, id) {
+  const item = data.implementations.find((implementation) => implementation.id === id);
+  if (!item) return;
+  app.insertAdjacentHTML('beforeend', implementationDetailsModal(item));
+  app.querySelector('.opportunity-dialog').showModal();
+  app.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
+}
 function openImplementationModal(data, item) {
   app.insertAdjacentHTML('beforeend', implementationModal(item));
   app.querySelector('.opportunity-dialog').showModal();
@@ -193,13 +205,14 @@ function removeOpportunity(data, id) {
   save(data); closeForm(); render();
 }
 app.addEventListener('click', (event) => {
-  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-view], [data-edit], [data-edit-implementation], [data-delete], [data-convert]');
+  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-view], [data-view-implementation], [data-edit], [data-edit-implementation], [data-delete], [data-convert]');
   if (!target) return;
   const data = load();
   if (target.dataset.page) { page = target.dataset.page; render(); return; }
   if (target.hasAttribute('data-open-form')) { openOpportunityModal(data); return; }
   if (target.hasAttribute('data-open-implementation-form')) { openImplementationModal(data); return; }
   if (target.dataset.view) { openOpportunityDetails(data, target.dataset.view); return; }
+  if (target.dataset.viewImplementation) { openImplementationDetails(data, target.dataset.viewImplementation); return; }
   if (target.dataset.editImplementation) { openImplementationModal(data, data.implementations.find((item) => item.id === target.dataset.editImplementation)); return; }
   if (target.dataset.edit) { openOpportunityModal(data, data.opportunities.find((item) => item.id === target.dataset.edit)); return; }
   if (target.dataset.delete) { removeOpportunity(data, target.dataset.delete); return; }
