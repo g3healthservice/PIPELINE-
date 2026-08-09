@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { buildOpportunityEmail } from './email-notification.js';
 
 const opportunity = {
@@ -46,4 +47,13 @@ test('recusa anexos que ultrapassam o limite de 40 MB do Resend', () => {
     type: 'INSERT',
     record: { ...opportunity, attachments: [{ name: 'grande.pdf', type: 'application/pdf', data: `data:application/pdf;base64,${oversized}` }] },
   }, 'g3.healthservice@gmail.com'), /Anexos excedem o limite de 40 MB do e-mail/);
+});
+
+test('a função de envio exige segredo, chama o Resend e registra o resultado', async () => {
+  const source = await readFile(new URL('./supabase/functions/notify-opportunity/index.ts', import.meta.url), 'utf8');
+
+  assert.match(source, /x-notification-secret/);
+  assert.match(source, /requiredSecret\('RESEND_API_KEY'\)/);
+  assert.match(source, /https:\/\/api\.resend\.com\/emails/);
+  assert.match(source, /opportunity_notification_log/);
 });
