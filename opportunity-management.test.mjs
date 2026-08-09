@@ -14,7 +14,7 @@ test('oferece edição, remoção, cancelamento e anexo na oportunidade', async 
   assert.match(app, /app\.addEventListener\('click'/);
   assert.doesNotMatch(app, /save\(data\);\n  return data;/);
   assert.match(app, /Não foi possível abrir a edição/);
-  assert.match(index, /app\.js\?v=20260805-1/);
+  assert.match(index, /app\.js\?v=20260809-1/);
   assert.match(index, /supabase-config\.js/);
   assert.match(app, /from '\.\/supabase-config\.js'/);
   assert.match(app, /\/rest\/v1/);
@@ -41,4 +41,13 @@ test('oferece campo obrigatório para nome quando a solução é avulsa', async 
   assert.match(app, /name="customSolution"/);
   assert.match(app, /function toggleCustomSolutionField\(form\)/);
   assert.match(app, /normalizeOpportunitySolution\(raw\)/);
+});
+
+test('oferece uma janela somente de leitura para detalhes da oportunidade', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /data-view=/);
+  assert.match(app, /function opportunityDetailsModal\(item\)/);
+  assert.match(app, /data-view-detail/);
+  assert.match(app, /target\.dataset\.view/);
 });

@@ -62,7 +62,11 @@ function card(item, stages, type, data) {
   const controls = type === 'commercial'
     ? `<button class="ghost compact" data-edit="${item.id}">Editar</button><button class="danger compact" data-delete="${item.id}">Remover</button>${canConvert ? `<button class="primary compact" data-convert="${item.id}">Criar implantação</button>` : ''}`
     : '';
-  return `<article class="card"><span class="tag">${escapeHtml(item.solution)}</span><h3>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h3><p>${type === 'commercial' ? money(item.value) : `Responsável: ${escapeHtml(item.owner)}`}</p><p class="muted">${escapeHtml(type === 'commercial' ? item.nextAction : item.nextMilestone || 'Definir próximo marco')}</p>${type === 'commercial' ? attachmentLinks(item.attachments) : ''}<div class="card-actions"><select data-move="${type}" data-id="${item.id}">${stages.map(([id, name]) => `<option value="${id}" ${id === item.stage ? 'selected' : ''}>${name}</option>`).join('')}</select>${controls}</div></article>`;
+  const summary = `<span class="tag">${escapeHtml(item.solution)}</span><h3>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h3><p>${type === 'commercial' ? money(item.value) : `Responsável: ${escapeHtml(item.owner)}`}</p><p class="muted">${escapeHtml(type === 'commercial' ? item.nextAction : item.nextMilestone || 'Definir próximo marco')}</p>`;
+  const clickableSummary = type === 'commercial'
+    ? `<button type="button" class="card-summary" data-view="${item.id}" aria-label="Ver detalhes de ${escapeHtml(item.municipality)}">${summary}</button>`
+    : summary;
+  return `<article class="card">${clickableSummary}${type === 'commercial' ? attachmentLinks(item.attachments) : ''}<div class="card-actions"><select data-move="${type}" data-id="${item.id}">${stages.map(([id, name]) => `<option value="${id}" ${id === item.stage ? 'selected' : ''}>${name}</option>`).join('')}</select>${controls}</div></article>`;
 }
 function board(stages, items, type, data) { return `<section class="board">${stages.map(([id, name]) => `<div class="column"><div class="column-title"><strong>${name}</strong><span>${items.filter((x) => x.stage === id).length}</span></div>${items.filter((x) => x.stage === id).map((x) => card(x, stages, type, data)).join('') || '<p class="empty">Sem itens</p>'}</div>`).join('')}</section>`; }
 function overview(data) {
@@ -85,6 +89,10 @@ function modal(item) {
 }
 function implementationModal() {
   return `<dialog open class="opportunity-dialog"><form id="implementation-form"><div class="modal-title"><div><span class="eyebrow">NOVO PROJETO</span><h2>Cadastrar implantação</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><div class="form-grid"><label>Município<input name="municipality" required placeholder="Ex.: Sobral" /></label><label>UF<input name="state" required maxlength="2" placeholder="CE" /></label><label>Solução<select name="solution">${solutions.map((x) => `<option>${x}</option>`).join('')}</select></label><label>Responsável<input name="owner" required value="Implantação" /></label><label>Próximo marco<input name="nextMilestone" required placeholder="Ex.: realizar kick-off" /></label><label>Riscos<textarea name="risks" placeholder="Ex.: agenda do município"></textarea></label><label class="attachment-field">Dependências<textarea name="dependencies" placeholder="Ex.: contrato assinado, acesso aos sistemas"></textarea></label></div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button><button class="primary">Salvar projeto</button></div></form></dialog>`;
+}
+function opportunityDetailsModal(item) {
+  const field = (label, value) => `<div><dt>${label}</dt><dd>${escapeHtml(value || 'Não informado')}</dd></div>`;
+  return `<dialog open class="opportunity-dialog"><section class="details-dialog" data-view-detail><div class="modal-title"><div><span class="eyebrow">DETALHES DA OPORTUNIDADE</span><h2>${escapeHtml(item.municipality)} · ${escapeHtml(item.state)}</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div><dl class="details-grid">${field('Solução', item.solution)}${field('Responsável', item.owner)}${field('Valor estimado', money(item.value))}${field('Próximo passo', item.nextAction)}${field('Data do próximo passo', item.due)}${field('Observações', item.notes)}</dl><div class="detail-attachments"><strong>Anexos</strong>${attachmentLinks(item.attachments) || '<p class="muted">Sem anexos.</p>'}</div><div class="modal-footer"><button type="button" class="ghost" data-close-form>Fechar</button></div></section></dialog>`;
 }
 function closeForm() { app.querySelector('.opportunity-dialog')?.remove(); }
 function readAttachment(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result }); reader.onerror = reject; reader.readAsDataURL(file); }); }
@@ -114,6 +122,12 @@ function openOpportunityModal(data, item) {
   try { app.insertAdjacentHTML('beforeend', modal(item)); bindForm(data, item?.id); }
   catch (error) { console.error(error); alert('Não foi possível abrir a edição. Atualize a página e tente novamente.'); }
 }
+function openOpportunityDetails(data, id) {
+  const item = data.opportunities.find((opportunity) => opportunity.id === id);
+  if (!item) return;
+  app.insertAdjacentHTML('beforeend', opportunityDetailsModal(item));
+  app.querySelectorAll('[data-close-form]').forEach((button) => button.addEventListener('click', closeForm));
+}
 function openImplementationModal(data) {
   app.insertAdjacentHTML('beforeend', implementationModal());
   const form = app.querySelector('#implementation-form');
@@ -132,12 +146,13 @@ function removeOpportunity(data, id) {
   save(data); closeForm(); render();
 }
 app.addEventListener('click', (event) => {
-  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-edit], [data-delete], [data-convert]');
+  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-view], [data-edit], [data-delete], [data-convert]');
   if (!target) return;
   const data = load();
   if (target.dataset.page) { page = target.dataset.page; render(); return; }
   if (target.hasAttribute('data-open-form')) { openOpportunityModal(data); return; }
   if (target.hasAttribute('data-open-implementation-form')) { openImplementationModal(data); return; }
+  if (target.dataset.view) { openOpportunityDetails(data, target.dataset.view); return; }
   if (target.dataset.edit) { openOpportunityModal(data, data.opportunities.find((item) => item.id === target.dataset.edit)); return; }
   if (target.dataset.delete) { removeOpportunity(data, target.dataset.delete); return; }
   if (target.dataset.convert) {
