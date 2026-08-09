@@ -96,6 +96,15 @@ textarea { min-height: 75px; }
 .details-grid dd { margin: 5px 0 0; white-space: pre-wrap; }
 .detail-attachments { margin-bottom: 19px; }
 .detail-attachments > strong { display: block; margin-bottom: 7px; }
+.notify-bell { font-size: 1.05rem; line-height: 1; position: relative; }
+.notify-bell[data-off]::after { content: ""; position: absolute; top: 6px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: #e0a300; }
+.small { font-size: .82rem; line-height: 1.5; }
+#notify-form .small { color: #607075; margin-top: 4px; }
+.notify-toggle { display: flex; flex-direction: row; align-items: center; gap: 9px; margin: 16px 0 4px; font-weight: 700; color: #21464a; }
+.notify-toggle input { width: auto; }
+.notify-msg { min-height: 18px; font-size: .85rem; margin-top: 10px; color: #607075; }
+.notify-msg.ok { color: #067565; font-weight: 700; }
+.notify-msg.erro { color: #a42d2d; font-weight: 700; }
 
 @media (max-width: 760px) {
   header, .hero, .page-title { align-items: flex-start; flex-direction: column; }

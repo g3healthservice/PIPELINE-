@@ -1,5 +1,12 @@
 import { commercialStages, implementationStages, canCreateImplementation, createManualImplementation, customSolutionLabel, formatCurrencyInput, normalizeOpportunitySolution, parseCurrencyInput, solutions } from './core.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
+import { loadNotifyConfig, saveNotifyConfig, notifyReady, sendNotification } from './notify.js';
+
+// Dispara-e-esquece: notificar nunca bloqueia nem atrasa o salvamento, e o
+// erro morre aqui. O dado já foi salvo antes desta chamada.
+function notificar(tipo, item) {
+  try { sendNotification({ tipo, item }).catch(() => {}); } catch { /* nunca quebra */ }
+}
 
 const key = 'g3-projetos-piloto-v1';
 const today = new Date().toISOString().slice(0, 10);
@@ -73,7 +80,40 @@ const app = document.querySelector('#app');
 let page = 'overview';
 
 function nav() {
-  return `<header><div class="brand"><img class="brand-logo" src="./assets/brain27-logo.png" alt="Brain27" /><span class="brand-title">Gestão de projetos</span></div><nav>${[['overview','Visão geral'],['commercial','Comercial'],['implementation','Implantação']].map(([id, name]) => `<button class="nav ${page === id ? 'active' : ''}" data-page="${id}">${name}</button>`).join('')}</nav></header>`;
+  const alerta = notifyReady(loadNotifyConfig()) ? '' : ' data-off';
+  return `<header><div class="brand"><img class="brand-logo" src="./assets/brain27-logo.png" alt="Brain27" /><span class="brand-title">Gestão de projetos</span></div><nav>${[['overview','Visão geral'],['commercial','Comercial'],['implementation','Implantação']].map(([id, name]) => `<button class="nav ${page === id ? 'active' : ''}" data-page="${id}">${name}</button>`).join('')}<button class="nav notify-bell" data-notify-settings title="Notificações por e-mail"${alerta}>🔔</button></nav></header>`;
+}
+function notifyModal() {
+  const cfg = loadNotifyConfig();
+  return `<dialog class="opportunity-dialog"><form id="notify-form"><div class="modal-title"><div><span class="eyebrow">AUTOMAÇÃO</span><h2>Notificações por e-mail</h2></div><button type="button" data-close-form aria-label="Fechar">×</button></div>
+    <p class="muted small">A cada nova oportunidade, mudança de etapa ou novo projeto, um e-mail com os detalhes é enviado ao endereço abaixo. O envio usa o <strong>EmailJS</strong> — cole os três identificadores da sua conta (veja o passo a passo que foi entregue). Sem eles, nada é enviado e o app funciona normalmente.</p>
+    <label class="notify-toggle"><input type="checkbox" name="enabled" ${cfg.enabled ? 'checked' : ''} /> Enviar notificações automaticamente</label>
+    <div class="form-grid">
+      <label>E-mail de destino<input name="to" type="email" value="${escapeHtml(cfg.to)}" placeholder="g3.healthservice@gmail.com" /></label>
+      <label>Service ID (EmailJS)<input name="serviceId" value="${escapeHtml(cfg.serviceId)}" placeholder="service_xxxxxxx" /></label>
+      <label>Template ID (EmailJS)<input name="templateId" value="${escapeHtml(cfg.templateId)}" placeholder="template_xxxxxxx" /></label>
+      <label>Chave pública (Public Key)<input name="publicKey" value="${escapeHtml(cfg.publicKey)}" placeholder="xxxxxxxxxxxxxxxx" /></label>
+    </div>
+    <div class="notify-msg" data-notify-msg></div>
+    <div class="modal-footer"><button type="button" class="ghost" data-close-form>Cancelar</button><button type="button" class="ghost" data-notify-test>Enviar teste</button><button class="primary">Salvar</button></div>
+  </form></dialog>`;
+}
+function openNotifyModal() {
+  app.insertAdjacentHTML('beforeend', notifyModal());
+  app.querySelector('.opportunity-dialog').showModal();
+  const form = app.querySelector('#notify-form');
+  const msg = form.querySelector('[data-notify-msg]');
+  const lerForm = () => ({ enabled: form.elements.enabled.checked, to: form.elements.to.value, serviceId: form.elements.serviceId.value, templateId: form.elements.templateId.value, publicKey: form.elements.publicKey.value });
+  form.querySelectorAll('[data-close-form]').forEach((b) => b.addEventListener('click', closeForm));
+  form.querySelector('[data-notify-test]').addEventListener('click', async () => {
+    const cfg = saveNotifyConfig({ ...lerForm(), enabled: true });
+    if (!notifyReady(cfg)) { msg.textContent = 'Preencha os três identificadores e o e-mail antes de testar.'; msg.className = 'notify-msg erro'; return; }
+    msg.textContent = 'Enviando teste…'; msg.className = 'notify-msg';
+    const r = await sendNotification({ tipo: 'oportunidade_nova', item: { municipality: 'Teste', state: 'BR', solution: 'Notificação de exemplo', owner: 'G3', value: 12345, stage: 'mapped', nextAction: 'Conferir a caixa de entrada', due: today, attachments: [] } }, cfg);
+    if (r.ok) { msg.textContent = 'Teste enviado. Confira a caixa de entrada (e o Spam).'; msg.className = 'notify-msg ok'; }
+    else { msg.textContent = 'Falhou: ' + (r.detalhe || r.erro || ('HTTP ' + r.status)) + '. Confira os identificadores e as origens autorizadas no EmailJS.'; msg.className = 'notify-msg erro'; }
+  });
+  form.addEventListener('submit', (event) => { event.preventDefault(); saveNotifyConfig(lerForm()); closeForm(); render(); });
 }
 function attachmentLinks(attachments = []) {
   if (!attachments.length) return '';
@@ -150,12 +190,12 @@ async function saveOpportunity(event, data, editingId) {
   const item = { ...existing, ...opportunityFields, solution: normalizeOpportunitySolution(raw), id: editingId || uid('opp'), stage: existing?.stage || 'mapped', value: parseCurrencyInput(raw.value), attachments };
   if (editingId) data.opportunities = data.opportunities.map((current) => current.id === editingId ? item : current);
   else data.opportunities.push(item);
-  save(data); closeForm(); page = 'commercial'; render();
+  save(data); notificar(editingId ? 'oportunidade_editada' : 'oportunidade_nova', item); closeForm(); page = 'commercial'; render();
 }
 function render() {
   const data = load();
   app.innerHTML = nav() + (page === 'overview' ? overview(data) : page === 'commercial' ? commercial(data) : implementation(data));
-  app.querySelectorAll('[data-move]').forEach((el) => el.addEventListener('change', () => { const list = el.dataset.move === 'commercial' ? data.opportunities : data.implementations; list.find((item) => item.id === el.dataset.id).stage = el.value; save(data); render(); }));
+  app.querySelectorAll('[data-move]').forEach((el) => el.addEventListener('change', () => { const list = el.dataset.move === 'commercial' ? data.opportunities : data.implementations; const item = list.find((x) => x.id === el.dataset.id); item.stage = el.value; save(data); notificar(el.dataset.move === 'commercial' ? 'oportunidade_etapa' : 'implantacao_etapa', item); render(); }));
 }
 function openOpportunityModal(data, item) {
   try { app.insertAdjacentHTML('beforeend', modal(item)); app.querySelector('.opportunity-dialog').showModal(); bindForm(data, item?.id); }
@@ -194,20 +234,25 @@ function saveImplementation(event, data, editingId) {
     // voltaria a poder virar um segundo projeto.
     const atualizado = { ...existing, ...raw };
     data.implementations = data.implementations.map((current) => current.id === editingId ? atualizado : current);
+    save(data); notificar('implantacao_editada', atualizado);
   } else {
-    data.implementations.push(createManualImplementation(raw, uid('impl')));
+    const novo = createManualImplementation(raw, uid('impl'));
+    data.implementations.push(novo);
+    save(data); notificar('implantacao_nova', novo);
   }
-  save(data); closeForm(); page = 'implementation'; render();
+  closeForm(); page = 'implementation'; render();
 }
 function removeOpportunity(data, id) {
+  const alvo = data.opportunities.find((item) => item.id === id);
   if (!window.confirm('Remover esta oportunidade? Esta ação não pode ser desfeita.')) return;
   data.opportunities = data.opportunities.filter((item) => item.id !== id);
-  save(data); closeForm(); render();
+  save(data); if (alvo) notificar('oportunidade_removida', alvo); closeForm(); render();
 }
 app.addEventListener('click', (event) => {
-  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-view], [data-view-implementation], [data-edit], [data-edit-implementation], [data-delete], [data-convert]');
+  const target = event.target.closest('[data-page], [data-open-form], [data-open-implementation-form], [data-notify-settings], [data-view], [data-view-implementation], [data-edit], [data-edit-implementation], [data-delete], [data-convert]');
   if (!target) return;
   const data = load();
+  if (target.hasAttribute('data-notify-settings')) { openNotifyModal(); return; }
   if (target.dataset.page) { page = target.dataset.page; render(); return; }
   if (target.hasAttribute('data-open-form')) { openOpportunityModal(data); return; }
   if (target.hasAttribute('data-open-implementation-form')) { openImplementationModal(data); return; }
@@ -219,8 +264,9 @@ app.addEventListener('click', (event) => {
   if (target.dataset.convert) {
     const source = data.opportunities.find((item) => item.id === target.dataset.convert);
     if (!canCreateImplementation(source, data.implementations)) return;
-    data.implementations.push({ id: uid('impl'), sourceOpportunityId: source.id, municipality: source.municipality, state: source.state, solution: source.solution, owner: source.owner, stage: 'kickoff', nextMilestone: 'Realizar reunião de kick-off', risks: '', dependencies: '' });
-    save(data); page = 'implementation'; render();
+    const derivada = { id: uid('impl'), sourceOpportunityId: source.id, municipality: source.municipality, state: source.state, solution: source.solution, owner: source.owner, stage: 'kickoff', nextMilestone: 'Realizar reunião de kick-off', risks: '', dependencies: '' };
+    data.implementations.push(derivada);
+    save(data); notificar('implantacao_derivada', derivada); page = 'implementation'; render();
   }
 });
 function bindForm(data, editingId) {
