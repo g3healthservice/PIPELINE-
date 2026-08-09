@@ -67,3 +67,15 @@ test('a migração notifica apenas inserções e mudanças reais de oportunidade
   assert.match(sql, /net\.http_post/i);
   assert.match(sql, /revoke all on public\.opportunity_notification_log from anon/i);
 });
+
+test('documenta os secrets sem vazar valores reais', async () => {
+  const env = await readFile(new URL('./supabase/.env.example', import.meta.url), 'utf8');
+  const readme = await readFile(new URL('./README.md', import.meta.url), 'utf8');
+  const packageJson = await readFile(new URL('./package.json', import.meta.url), 'utf8');
+
+  assert.match(env, /^RESEND_API_KEY=$/m);
+  assert.match(env, /^OPPORTUNITY_NOTIFICATION_SECRET=$/m);
+  assert.match(readme, /g3\.healthservice@gmail\.com/);
+  assert.match(readme, /supabase functions deploy notify-opportunity/);
+  assert.match(packageJson, /node --check email-notification\.js/);
+});

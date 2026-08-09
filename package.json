@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "test": "node --test *.test.mjs",
-    "check": "node --check app.js && node --check core.js"
+    "check": "node --check app.js && node --check core.js && node --check email-notification.js"
   }
 }
