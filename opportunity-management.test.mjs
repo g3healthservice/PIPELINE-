@@ -76,3 +76,11 @@ test('abre os detalhes na camada modal da tela', async () => {
   assert.match(app, /function openOpportunityDetails\(data, id\)[\s\S]*\.showModal\(\)/);
   assert.match(app, /function opportunityDetailsModal\(item\)[\s\S]*<dialog class="opportunity-dialog">/);
 });
+
+test('abre os formulários de cadastro na camada modal da tela', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(app, /<dialog open class="opportunity-dialog">/);
+  assert.match(app, /function openOpportunityModal\(data, item\)[\s\S]*\.showModal\(\)/);
+  assert.match(app, /function openImplementationModal\(data, item\)[\s\S]*\.showModal\(\)/);
+});
