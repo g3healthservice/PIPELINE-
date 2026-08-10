@@ -34,3 +34,26 @@ Enquanto isso não for feito, o projeto manual aparece na tela e não é gravado
 `npm test` valida a regra central — só uma oportunidade contratada sem implantação derivada pode criar um projeto — e que o projeto manual não interfere nela.
 
 `npm run check` valida a sintaxe de `app.js` e `core.js`.
+
+## Notificações de oportunidades por e-mail
+
+O projeto envia notificações pelo [EmailJS](https://www.emailjs.com/) para
+`g3.healthservice@gmail.com` na criação, edição ou mudança de etapa de uma
+oportunidade. O envio acontece depois da gravação no banco; uma falha de
+e-mail nunca desfaz a oportunidade.
+
+### Ativação necessária
+
+1. No painel do EmailJS, abra **Account > Security > Domains** e adicione
+   `https://g3healthservice.github.io` à allowlist. Salve a alteração antes de
+   testar o site publicado.
+2. Abra o modelo `template_rzlj9wb`. Na aba **Anexos**, adicione um
+   **Variable Attachment** com o nome `anexo_0`; no nome do arquivo, use
+   `{{anexo_0_nome}}`, e salve o modelo. Esse campo recebe o primeiro anexo
+   dinâmico da oportunidade.
+3. Crie uma oportunidade com um anexo e depois atualize sua etapa. Devem
+   chegar notificações de criação e atualização. Se o envio falhar, a
+   oportunidade permanece salva e o erro aparece no console do navegador.
+
+As chaves públicas, service ID e template ID ficam em `emailjs-notification.js`.
+Não inclua chaves privadas ou credenciais de e-mail no repositório.
