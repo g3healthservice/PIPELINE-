@@ -212,10 +212,13 @@ function saveImplementation(event, data, editingId) {
     // voltaria a poder virar um segundo projeto.
     const atualizado = { ...existing, ...raw };
     data.implementations = data.implementations.map((current) => current.id === editingId ? atualizado : current);
+    save(data);
   } else {
-    data.implementations.push(createManualImplementation(raw, uid('impl')));
+    const novo = createManualImplementation(raw, uid('impl'));
+    data.implementations.push(novo);
+    save(data);
   }
-  save(data); closeForm(); page = 'implementation'; render();
+  closeForm(); page = 'implementation'; render();
 }
 function removeOpportunity(data, id) {
   if (!window.confirm('Remover esta oportunidade? Esta ação não pode ser desfeita.')) return;
@@ -237,7 +240,8 @@ app.addEventListener('click', (event) => {
   if (target.dataset.convert) {
     const source = data.opportunities.find((item) => item.id === target.dataset.convert);
     if (!canCreateImplementation(source, data.implementations)) return;
-    data.implementations.push({ id: uid('impl'), sourceOpportunityId: source.id, municipality: source.municipality, state: source.state, solution: source.solution, owner: source.owner, stage: 'kickoff', nextMilestone: 'Realizar reunião de kick-off', risks: '', dependencies: '' });
+    const derivada = { id: uid('impl'), sourceOpportunityId: source.id, municipality: source.municipality, state: source.state, solution: source.solution, owner: source.owner, stage: 'kickoff', nextMilestone: 'Realizar reunião de kick-off', risks: '', dependencies: '' };
+    data.implementations.push(derivada);
     save(data); page = 'implementation'; render();
   }
 });
