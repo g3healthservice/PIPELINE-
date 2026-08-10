@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { solutions } from './core.js';
 
+test('notifica EmailJS somente após salvar a oportunidade', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  assert.match(app, /import \{ sendOpportunityEmail \} from '\.\/emailjs-notification\.js'/);
+  assert.match(app, /async function notifyAfterSave\(type, item, saved\)/);
+  assert.match(app, /if \(!saved\) return/);
+  assert.match(app, /const saved = await save\(data\)/);
+});
+
 test('oferece edição, remoção, cancelamento e anexo na oportunidade', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
   const index = await readFile(new URL('./index.html', import.meta.url), 'utf8');

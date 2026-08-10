@@ -1,4 +1,5 @@
 import { commercialStages, implementationStages, canCreateImplementation, createManualImplementation, customSolutionLabel, formatCurrencyInput, normalizeOpportunitySolution, parseCurrencyInput, solutions } from './core.js';
+import { sendOpportunityEmail } from './emailjs-notification.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
 
 const key = 'g3-projetos-piloto-v1';
@@ -63,7 +64,13 @@ async function save(data) {
     // Na remocao, a ordem se inverte pelo mesmo motivo.
     await removerAusentes('implementations', data.implementations);
     await removerAusentes('opportunities', data.opportunities);
-  } catch (error) { console.error(error); alert('Não foi possível salvar na base compartilhada. Nada foi apagado — tente novamente.'); }
+    return true;
+  } catch (error) { console.error(error); alert('Não foi possível salvar na base compartilhada. Nada foi apagado — tente novamente.'); return false; }
+}
+async function notifyAfterSave(type, item, saved) {
+  if (!saved) return;
+  try { await sendOpportunityEmail(type, item); }
+  catch (error) { console.error('Não foi possível enviar a notificação por e-mail.', error); }
 }
 function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }).format(Number(value || 0)); }
 function uid(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
@@ -150,12 +157,23 @@ async function saveOpportunity(event, data, editingId) {
   const item = { ...existing, ...opportunityFields, solution: normalizeOpportunitySolution(raw), id: editingId || uid('opp'), stage: existing?.stage || 'mapped', value: parseCurrencyInput(raw.value), attachments };
   if (editingId) data.opportunities = data.opportunities.map((current) => current.id === editingId ? item : current);
   else data.opportunities.push(item);
-  save(data); closeForm(); page = 'commercial'; render();
+  const saved = await save(data);
+  await notifyAfterSave(editingId ? 'updated' : 'created', item, saved);
+  if (!saved) return;
+  closeForm(); page = 'commercial'; render();
 }
 function render() {
   const data = load();
   app.innerHTML = nav() + (page === 'overview' ? overview(data) : page === 'commercial' ? commercial(data) : implementation(data));
-  app.querySelectorAll('[data-move]').forEach((el) => el.addEventListener('change', () => { const list = el.dataset.move === 'commercial' ? data.opportunities : data.implementations; list.find((item) => item.id === el.dataset.id).stage = el.value; save(data); render(); }));
+  app.querySelectorAll('[data-move]').forEach((el) => el.addEventListener('change', async () => {
+    const list = el.dataset.move === 'commercial' ? data.opportunities : data.implementations;
+    const item = list.find((item) => item.id === el.dataset.id);
+    item.stage = el.value;
+    const saved = await save(data);
+    if (el.dataset.move === 'commercial') await notifyAfterSave('updated', item, saved);
+    if (!saved) return;
+    render();
+  }));
 }
 function openOpportunityModal(data, item) {
   try { app.insertAdjacentHTML('beforeend', modal(item)); app.querySelector('.opportunity-dialog').showModal(); bindForm(data, item?.id); }
