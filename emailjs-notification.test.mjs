@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { emailjsConfig, emailjsParams, sendOpportunityEmail } from './emailjs-notification.js';
 
@@ -50,4 +51,13 @@ test('rejeita quando a API EmailJS responde com erro', async () => {
     sendOpportunityEmail('created', { attachments: [] }, async () => ({ ok: false })),
     /EmailJS/,
   );
+});
+
+test('documenta a allowlist e o anexo dinâmico do EmailJS', async () => {
+  const readme = await readFile(new URL('./README.md', import.meta.url), 'utf8');
+  const index = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+
+  assert.match(readme, /https:\/\/g3healthservice\.github\.io/);
+  assert.match(readme, /anexo_0/);
+  assert.match(index, /app\.js\?v=\d{8}-\d+/);
 });

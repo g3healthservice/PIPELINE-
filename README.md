@@ -37,49 +37,23 @@ Enquanto isso não for feito, o projeto manual aparece na tela e não é gravado
 
 ## Notificações de oportunidades por e-mail
 
-O projeto já contém a função e a migração para enviar notificações para
+O projeto envia notificações pelo [EmailJS](https://www.emailjs.com/) para
 `g3.healthservice@gmail.com` na criação, edição ou mudança de etapa de uma
 oportunidade. O envio acontece depois da gravação no banco; uma falha de
 e-mail nunca desfaz a oportunidade.
 
 ### Ativação necessária
 
-1. Crie uma conta no [Resend](https://resend.com) e gere uma API key de envio.
-   Sem acesso ao DNS de `brain27.com.br`, use o remetente de testes autorizado
-   pelo Resend no campo `RESEND_FROM`.
-2. Copie `supabase/.env.example` para `supabase/.env` e preencha apenas na sua
-   máquina `RESEND_API_KEY`, `RESEND_FROM`, `OPPORTUNITY_NOTIFICATION_SECRET`
-   (uma sequência longa e aleatória) e `SUPABASE_SERVICE_ROLE_KEY`. Não envie
-   esse arquivo por e-mail, chat ou Git.
-3. Instale a CLI do Supabase, autentique-se no projeto `bpycttojdgafwfjbmtya`
-   e execute:
+1. No painel do EmailJS, abra **Account > Security > Domains** e adicione
+   `https://g3healthservice.github.io` à allowlist. Salve a alteração antes de
+   testar o site publicado.
+2. Abra o modelo `template_rzlj9wb`. Na aba **Anexos**, adicione um
+   **Variable Attachment** com o nome `anexo_0`; no nome do arquivo, use
+   `{{anexo_0_nome}}`, e salve o modelo. Esse campo recebe o primeiro anexo
+   dinâmico da oportunidade.
+3. Crie uma oportunidade com um anexo e depois atualize sua etapa. Devem
+   chegar notificações de criação e atualização. Se o envio falhar, a
+   oportunidade permanece salva e o erro aparece no console do navegador.
 
-   ```bash
-   supabase secrets set --env-file supabase/.env
-   supabase functions deploy notify-opportunity --no-verify-jwt
-   ```
-
-4. No SQL Editor do Supabase, crie os dois segredos do banco, substituindo
-   apenas o valor aleatório pelo mesmo valor de `OPPORTUNITY_NOTIFICATION_SECRET`:
-
-   ```sql
-   select vault.create_secret(
-     'https://bpycttojdgafwfjbmtya.supabase.co/functions/v1/notify-opportunity',
-     'opportunity_notification_url'
-   );
-   select vault.create_secret(
-     'substitua-pelo-segredo-aleatorio',
-     'opportunity_notification_secret'
-   );
-   ```
-
-5. Ainda no SQL Editor, aplique todo o conteúdo de `supabase/email-notifications.sql`.
-6. Crie uma oportunidade e depois altere sua etapa. Devem chegar dois e-mails:
-   um de criação e outro de atualização, com resumo e anexos. Se algum envio
-   falhar, consulte `opportunity_notification_log` no Supabase.
-
-O Resend limita cada e-mail, já codificado em Base64, a 40 MB. Quando os anexos
-ultrapassarem esse total, o registro fica marcado como falho no log em vez de
-ser enviada uma mensagem parcial. Quando houver acesso ao DNS, valide
-`brain27.com.br` no Resend e altere somente o secret `RESEND_FROM` para usar o
-remetente institucional.
+As chaves públicas, service ID e template ID ficam em `emailjs-notification.js`.
+Não inclua chaves privadas ou credenciais de e-mail no repositório.
