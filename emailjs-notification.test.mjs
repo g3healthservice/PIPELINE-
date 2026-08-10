@@ -53,6 +53,19 @@ test('rejeita quando a API EmailJS responde com erro', async () => {
   );
 });
 
+test('repete uma vez o envio quando a primeira tentativa falha', async () => {
+  let attempts = 0;
+  const fetcher = async () => {
+    attempts += 1;
+    if (attempts === 1) throw new Error('Falha temporária de rede');
+    return { ok: true };
+  };
+
+  await sendOpportunityEmail('updated', { attachments: [] }, fetcher);
+
+  assert.equal(attempts, 2);
+});
+
 test('documenta a allowlist e o anexo dinâmico do EmailJS', async () => {
   const readme = await readFile(new URL('./README.md', import.meta.url), 'utf8');
   const index = await readFile(new URL('./index.html', import.meta.url), 'utf8');
