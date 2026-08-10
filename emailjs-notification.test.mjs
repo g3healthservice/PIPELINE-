@@ -59,5 +59,5 @@ test('documenta a allowlist e o anexo dinâmico do EmailJS', async () => {
 
   assert.match(readme, /https:\/\/g3healthservice\.github\.io/);
   assert.match(readme, /anexo_0/);
-  assert.match(index, /app\.js\?v=\d{8}-\d+/);
+  assert.match(index, /app\.js\?v=20260809-6/);
 });
