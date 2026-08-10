@@ -18,7 +18,7 @@ export function emailjsParams(type, item) {
 }
 
 export async function sendOpportunityEmail(type, item, fetcher = fetch) {
-  const response = await fetcher('https://api.emailjs.com/api/v1.0/email/send', {
+  const options = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -27,8 +27,17 @@ export async function sendOpportunityEmail(type, item, fetcher = fetch) {
       user_id: emailjsConfig.publicKey,
       template_params: emailjsParams(type, item),
     }),
-  });
+  };
 
-  if (!response.ok) throw new Error('EmailJS request failed.');
-  return response;
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetcher('https://api.emailjs.com/api/v1.0/email/send', options);
+      if (!response.ok) throw new Error('EmailJS request failed.');
+      return response;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
