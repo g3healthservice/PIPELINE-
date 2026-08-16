@@ -22,7 +22,7 @@ const app = document.querySelector('#app');
 let page = 'overview';
 
 function nav() {
-  return `<header><div><span class="eyebrow">G3 HEALTH SERVICE</span><h1>G3 Projetos</h1></div><nav>${[['overview','Visão geral'],['commercial','Comercial'],['implementation','Implantação']].map(([id, name]) => `<button class="nav ${page === id ? 'active' : ''}" data-page="${id}">${name}</button>`).join('')}</nav></header>`;
+  return `<header><div><span class="eyebrow">G3 HEALTH SERVICE</span><h1>Projetos-pipeline</h1></div><nav>${[['overview','Visão geral'],['commercial','Comercial'],['implementation','Implantação']].map(([id, name]) => `<button class="nav ${page === id ? 'active' : ''}" data-page="${id}">${name}</button>`).join('')}</nav></header>`;
 }
 function card(item, stages, type, data) {
   const canConvert = type === 'commercial' && canCreateImplementation(item, data.implementations);
