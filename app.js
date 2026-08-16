@@ -1,4 +1,4 @@
-import { commercialStages, implementationStages, canCreateImplementation, createManualImplementation, customSolutionLabel, formatCurrencyInput, normalizeOpportunitySolution, parseCurrencyInput, solutions } from './core.js';
+import { commercialStages, implementationStages, canCreateImplementation, createManualImplementation, customSolutionLabel, formatCurrencyInput, normalizeOpportunitySolution, parseCurrencyInput, solutions } from './core.js?v=20260816-2';
 import { sendOpportunityEmail } from './emailjs-notification.js';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
 

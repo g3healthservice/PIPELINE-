@@ -1,6 +1,6 @@
 export const commercialStages = [
   ['mapped', 'Mapeado'], ['qualified', 'Qualificado'], ['diagnosis', 'Diagnóstico'],
-  ['proposal', 'Proposta'], ['negotiation', 'Negociação'], ['contracted', 'Contratado'],
+  ['negotiation', 'Negociação'], ['proposal', 'Proposta'], ['contracted', 'Contratado'],
 ];
 
 export const implementationStages = [
