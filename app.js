@@ -80,7 +80,7 @@ const app = document.querySelector('#app');
 let page = 'overview';
 
 function nav() {
-  return `<header><div class="brand"><img class="brand-logo" src="./assets/brain27-logo.png" alt="Brain27" /><span class="brand-title">Gestão de projetos</span></div><nav>${[['overview','Visão geral'],['commercial','Projetos'],['implementation','Implantação']].map(([id, name]) => `<button class="nav ${page === id ? 'active' : ''}" data-page="${id}">${name}</button>`).join('')}</nav></header>`;
+  return `<header><div class="brand"><img class="brand-logo" src="./assets/brain27-logo.png" alt="Brain27" /><span class="brand-title">Projetos-pipeline</span></div><nav>${[['overview','Visão geral'],['commercial','Projetos'],['implementation','Implantação']].map(([id, name]) => `<button class="nav ${page === id ? 'active' : ''}" data-page="${id}">${name}</button>`).join('')}</nav></header>`;
 }
 function attachmentLinks(attachments = []) {
   if (!attachments.length) return '';
