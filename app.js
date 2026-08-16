@@ -80,7 +80,7 @@ const app = document.querySelector('#app');
 let page = 'overview';
 
 function nav() {
-  return `<header><div class="brand"><img class="brand-logo" src="./assets/brain27-logo.png" alt="Brain27" /><span class="brand-title">Projetos-pipeline</span></div><nav>${[['overview','Visão geral'],['commercial','Projetos'],['implementation','Implantação']].map(([id, name]) => `<button class="nav ${page === id ? 'active' : ''}" data-page="${id}">${name}</button>`).join('')}</nav></header>`;
+  return `<header><div class="brand"><svg class="brand-mark" width="34" height="34" viewBox="0 0 34 34" role="img" aria-label="Projetos-pipeline" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="7" width="26" height="5" rx="2.5" fill="#87ed4c"/><rect x="8" y="15" width="18" height="5" rx="2.5" fill="#43c7b1"/><rect x="12" y="23" width="10" height="5" rx="2.5" fill="#7bd445"/></svg><span class="brand-title">Projetos-pipeline</span></div><nav>${[['overview','Visão geral'],['commercial','Projetos'],['implementation','Implantação']].map(([id, name]) => `<button class="nav ${page === id ? 'active' : ''}" data-page="${id}">${name}</button>`).join('')}</nav></header>`;
 }
 function attachmentLinks(attachments = []) {
   if (!attachments.length) return '';

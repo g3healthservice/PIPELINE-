@@ -1,4 +1,4 @@
-# G3 Projetos — piloto
+# Projetos-pipeline — piloto
 
 Aplicação web estática para validar o fluxo entre Comercial e Gestão da Implantação.
 
